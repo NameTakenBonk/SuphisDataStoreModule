@@ -28,7 +28,7 @@ So the way **Suphi's DataStore Module** works is that it uses the `MemoryStore` 
 
 # Download
 
-Go to releases and download the version(latest stable version prefered).
+Go to releases and download the version(latest stable version prefered), or copy the code in the repo.
 Current version: `0.1 [BETA]`
 
 # Contructors
