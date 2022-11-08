@@ -207,7 +207,7 @@ local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
 game.Players.PlayerAdded:Connect(function(player)
     local dataStore = dataStoreModule.new("Player", player.UserId)
     local errorType = dataStore:Open({}) -- default value set to a empty table
-    if errorType ~= nil then print(dataStore.Id, "failed to open because:", errorType)
+    if errorType ~= nil then print(dataStore.Id, "failed to open because:", errorType) end
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
