@@ -292,3 +292,6 @@ end)
 # To do
 
 Add the ability to remove data
+Add reconcile function
+Add copy function
+Add compression option
