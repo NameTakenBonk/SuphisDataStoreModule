@@ -29,7 +29,7 @@ So the way **Suphi's DataStore Module** works is that it uses the `MemoryStore` 
 # Download
 
 Go to releases and download the version(latest stable version prefered), or copy the code in the repo.
-Current version: `0.1 [BETA]`
+Current version: `0.3 [BETA]`
 
 # Contructors
 
@@ -158,6 +158,11 @@ Closes the session, set save parameter to false to prevent saving to the datasto
 Destroy(save: boolean)  nil
 ```
 Closes and destroys the session, set save parameter to false to prevent saving to the datastore, destroyed sessions will be locked
+
+```lua
+Reconcile(template: Variant)  nil
+```
+Fills in missing values from the template into the value property
 
 # Simple Example
 
@@ -291,7 +296,5 @@ end)
 
 # To do
 
-Add the ability to remove data
-Add reconcile function
-Add copy function
-Add compression option
+Add compression ability
+Add modes (Automatic/Manual/Proxy)
