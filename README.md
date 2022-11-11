@@ -191,16 +191,25 @@ dataStore:Destroy()
 # Load Example
 
 ```lua
+-- Require the ModuleScript
 local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
+
+-- Find or create a datastore object
 local dataStore = dataStoreModule.new("Name", "Key")
 
--- load the value from the datastore
-local errorType = dataStore:Load()
-if errorType ~= nil then print(dataStore.Id, "failed to load because:", errorType)
+-- Connect a function to the StateChanged event and print to the output when the state changes
+dataStore.StateChanged:Connect(function(state) print(state, dataStore.Id) end)
 
--- WARNING this value might be out of date use open instead if you need the latest value
-print(dataStore.Value)
+-- Open the datastore session
+local errorType, errorMessage = dataStore:Open()
 
+-- If the session fails to open lets print why
+if errorType ~= nil then print(dataStore.Id, errorType, errorMessage) end
+
+-- Set the datastore value
+dataStore.Value = "Hello world!"
+
+-- Save, close and destroy the session
 dataStore:Destroy()
 ```
 
@@ -209,10 +218,16 @@ dataStore:Destroy()
 ```lua
 local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
 
+local template = {
+  Level = 0,
+  Inventory = {},
+  DeveloperProducts = {},
+}
+
 game.Players.PlayerAdded:Connect(function(player)
     local dataStore = dataStoreModule.new("Player", player.UserId)
-    local errorType = dataStore:Open({}) -- default value set to a empty table
-    if errorType ~= nil then print(dataStore.Id, "failed to open because:", errorType) end
+    local errorType, errorMessage = dataStore:Open(template) -- reconcile with template
+    if errorType ~= nil then print(dataStore.Id, errorType, errorMessage) end
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
@@ -220,6 +235,15 @@ game.Players.PlayerRemoving:Connect(function(player)
     if dataStore == nil then return end
     dataStore:Destroy()
 end)
+```
+
+# Setup Player Data Example
+
+```lua
+local dataStore = dataStoreModule.find("Player", player.UserId)
+if dataStore == nil then return end
+if dataStore.Active == false then return end -- make sure the session is active or value will never get saved
+dataStore.Value.Health = 100
 ```
 
 # Developer Products Example
@@ -232,9 +256,6 @@ marketplaceService.ProcessReceipt = function(receiptInfo)
     if dataStore == nil then return Enum.ProductPurchaseDecision.NotProcessedYet end
     if dataStore.Active == false then return Enum.ProductPurchaseDecision.NotProcessedYet end
 
-    -- Set DeveloperProducts to a empty table if does not exist
-    dataStore.Value.DeveloperProducts = dataStore.Value.DeveloperProducts or {}
-
     -- convert the ProductId to a string as we are not allowed empty slots for numeric indexes
     local productId = tostring(receiptInfo.ProductId)
 
@@ -242,7 +263,7 @@ marketplaceService.ProcessReceipt = function(receiptInfo)
     dataStore.Value.DeveloperProducts[productId] = (dataStore.Value.DeveloperProducts[productId] or 0) + 1
 
     -- tell the session to save as quick as possible and not wait for the next save interval
-    local errorType = dataStore:Save()
+    local errorType, errorMessage = dataStore:Save()
     
     -- make sure there was no errors when saving
     if errorType == nil then
@@ -261,35 +282,38 @@ end
 ```lua
 local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
 
+local template = {
+  Level = 0,
+  Inventory = {},
+  DeveloperProducts = {},
+}
+
+local function AutomaticRetry(dataStore)
+    -- Keep trying to re-open if the state is not destroyed
+    while dataStore.State ~= "Destroyed" do
+        local errorType, errorMessage = dataStore:Open(template)
+        if errorType == nil then break end
+        print(dataStore.Id, errorType, errorMessage)
+        task.wait(5)
+    end
+end
+
 game.Players.PlayerAdded:Connect(function(player)
     local dataStore = dataStoreModule.new("Player", player.UserId)
 
     -- Detect if the session becomes inactive
     dataStore.ActiveChanged:Connect(function(active)
         if active == true then return end
-        
-        -- Keep trying to re-open for as long as the state is not Destroyed
-        while dataStore.State ~= "Destroyed" do
-            local errorType = dataStore:Open({})
-            if errorType == nil then break end
-            print(dataStore.Id, "failed to open because:", errorType)
-            task.wait(5)
-        end
+        AutomaticRetry(dataStore)
     end)
 
-    -- Keep trying to open for as long as the state is not Destroyed
-    while dataStore.State ~= "Destroyed" do
-        local errorType = dataStore:Open({})
-        if errorType == nil then break end
-        print(dataStore.Id, "failed to open because:", errorType)
-        task.wait(5)
-    end
+    AutomaticRetry(dataStore)
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
     local dataStore = dataStoreModule.find("Player", player.UserId)
     if dataStore == nil then return end
-    -- If the player leaves datastore object is destroyed allowing the loops above to break
+    -- If the player leaves datastore object is destroyed allowing the retry loop to stop
     dataStore:Destroy()
 end)
 ```
