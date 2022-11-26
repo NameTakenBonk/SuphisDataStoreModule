@@ -5,14 +5,15 @@ Before I start, this is not mine but Suphi#3388 module, I got permission to put 
 # Features 
 
 * Session locking         Prevents multiple servers from opening the same datastore key
-* Auto save               Automatically saves cached data to the datastore based on the interval property
+* Auto save               Automatically saves cached data to the datastore based on the saveinterval property
 * Bind To Close           Automatically saves, closes and destroys all sessions when server starts to close
-* Save throttling         Impossible to get "Datastore request was added to queue" warning
+* Reconcile               Fills in missing values from the template into the value property
+* Save throttling         Impossible for save requests dropping
 * Multiple script support Safe to interact with the same datastore object from multiple scripts
-* Direct value access     Access the datastore value directly, value is never cloned
+* Task batching           Tasks will be batched togever when possible
+* Direct value access     Access the datastore value directly, module will never tamper with your data
 * Easy to use             Simple and elegant
 * Lightweight             No RunService events and no while do loops 100% event based
-* Small                   Only 200 lines of code
 
 # Suphi's DataStore Module vs ProfileService
 
@@ -28,8 +29,11 @@ So the way **Suphi's DataStore Module** works is that it uses the `MemoryStore` 
 
 # Download
 
-Go to releases and download the version(latest stable version prefered), or copy the code in the repo.
-Current version: `0.3 [BETA]`
+Go to releases and download the version(latest stable version prefered), or copy the code in the repo. Alternatively without downloading you can do:
+```lua
+local dataStoreModule = require(11671168253)
+```
+Current version: `0.4 [BETA]`
 
 # Contructors
 
@@ -61,9 +65,9 @@ Value  Variant  nil
 Value of datastore
 
 ```lua
-Interval  number  60
+Metadata  table  {}
 ```
-Interval in seconds the datastore will automatically save
+Metadata associated with the key
 
 ```lua
 UserIds  table  {}
@@ -71,9 +75,19 @@ UserIds  table  {}
 An array of UserIds associated with the key
 
 ```lua
-Metadata  table  {}
+SaveInterval  number  30
 ```
-Metadata associated with the key
+Interval in seconds the datastore will automatically save (set to 0 to disable automatic saving)
+
+```lua
+LockInterval  number  30
+```
+Interval in seconds the memorystore will update the session lock
+
+```lua
+SaveBeforeClose  boolean  true
+```
+Automatically save the data when the session is closed or destroyed
 
 ```lua
 Id  string  "Name/Scope/Key"  READ ONLY
@@ -89,11 +103,6 @@ Key used for the datastore
 State  string  "Closed"  READ ONLY
 ```
 Current state of the session 
-
-```lua
-Active  boolean  false  READ ONLY
-```
-True if session is active else false
 
 ```lua
 CreatedTime  number  0  READ ONLY
@@ -123,14 +132,9 @@ StateChanged(state: string)  RBXScriptSignal
 Fires after state property has changed
 
 ```lua
-ActiveChanged(active: boolean)  RBXScriptSignal
+StateChanged(state: nil/boolean)  Signal
 ```
-Fires after active property has changed
-
-```lua
-SavingEvent()  RBXScriptSignal
-```
-Fires just before the datastore is about to save
+Fires after state property has changed
 
 # Methods
 
@@ -167,19 +171,24 @@ Fills in missing values from the template into the value property
 # Simple Example
 
 ```lua
-local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
+-- Require the ModuleScript
+local dataStoreModule = require(11671168253)
 
 -- Find or create a datastore object
 local dataStore = dataStoreModule.new("Name", "Key")
 
 -- Connect a function to the StateChanged event and print to the output when the state changes
-dataStore.StateChanged:Connect(function(state) print(state, dataStore.Id) end)
+dataStore.StateChanged:Connect(function(state)
+    if state == nil then print("Destroyed", dataStore.Id) end
+    if state == false then print("Closed   ", dataStore.Id) end
+    if state == true then print("Open     ", dataStore.Id) end
+end)
 
 -- Open the datastore session
-local errorType = dataStore:Open()
+local errorType, errorMessage = dataStore:Open()
 
--- If the session fails to open lets print why
-if errorType ~= nil then print(dataStore.Id, "failed to open because:", errorType)
+-- If the session fails to open lets print why and return
+if errorType ~= nil then print(dataStore.Id, errorType, errorMessage) return end
 
 -- Set the datastore value
 dataStore.Value = "Hello world!"
@@ -191,43 +200,35 @@ dataStore:Destroy()
 # Load Example
 
 ```lua
--- Require the ModuleScript
-local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
-
--- Find or create a datastore object
+local dataStoreModule = require(11671168253)
 local dataStore = dataStoreModule.new("Name", "Key")
 
--- Connect a function to the StateChanged event and print to the output when the state changes
-dataStore.StateChanged:Connect(function(state) print(state, dataStore.Id) end)
+-- load the value from the datastore
+local errorType, errorMessage = dataStore:Load()
+if errorType ~= nil then print(dataStore.Id, errorType, errorMessage) return end
 
--- Open the datastore session
-local errorType, errorMessage = dataStore:Open()
+-- WARNING this value might be out of date use open instead if you need the latest value
+print(dataStore.Value)
 
--- If the session fails to open lets print why
-if errorType ~= nil then print(dataStore.Id, errorType, errorMessage) end
-
--- Set the datastore value
-dataStore.Value = "Hello world!"
-
--- Save, close and destroy the session
+-- as we never opened the session it will instantly destroy without saving or closing
 dataStore:Destroy()
 ```
 
 # Setup Player Data Example
 
 ```lua
-local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
+local dataStoreModule = require(11671168253)
 
 local template = {
-  Level = 0,
-  Inventory = {},
-  DeveloperProducts = {},
+    Level = 0,
+    Inventory = {},
+    DeveloperProducts = {},
 }
 
 game.Players.PlayerAdded:Connect(function(player)
     local dataStore = dataStoreModule.new("Player", player.UserId)
-    local errorType, errorMessage = dataStore:Open(template) -- reconcile with template
-    if errorType ~= nil then print(dataStore.Id, errorType, errorMessage) end
+    local errorType = dataStore:Open(template) -- reconcile with template
+    if errorType ~= nil then print(player.Name, "failed to open") end
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
@@ -242,19 +243,20 @@ end)
 ```lua
 local dataStore = dataStoreModule.find("Player", player.UserId)
 if dataStore == nil then return end
-if dataStore.Active == false then return end -- make sure the session is active or value will never get saved
-dataStore.Value.Health = 100
+if dataStore.State ~= true then return end -- make sure the session is open or the value will never get saved
+dataStore.Value.Level += 1
 ```
 
 # Developer Products Example
 
 ```lua 
 local marketplaceService = game:GetService("MarketplaceService")
+local dataStoreModule = require(11671168253)
 
 marketplaceService.ProcessReceipt = function(receiptInfo)
     local dataStore = dataStoreModule.find("Player", receiptInfo.PlayerId)
     if dataStore == nil then return Enum.ProductPurchaseDecision.NotProcessedYet end
-    if dataStore.Active == false then return Enum.ProductPurchaseDecision.NotProcessedYet end
+    if dataStore.State ~= true then return Enum.ProductPurchaseDecision.NotProcessedYet end
 
     -- convert the ProductId to a string as we are not allowed empty slots for numeric indexes
     local productId = tostring(receiptInfo.ProductId)
@@ -280,20 +282,18 @@ end
 # Setup Player Data Automatic Retry Example
 
 ```lua
-local dataStoreModule = require(game.ServerStorage.SuphisDataStoreModule)
+local dataStoreModule = require(11671168253)
 
 local template = {
-  Level = 0,
-  Inventory = {},
-  DeveloperProducts = {},
+    Level = 0,
+    Inventory = {},
+    DeveloperProducts = {},
 }
 
 local function AutomaticRetry(dataStore)
     -- Keep trying to re-open if the state is not destroyed
-    while dataStore.State ~= "Destroyed" do
-        local errorType, errorMessage = dataStore:Open(template)
-        if errorType == nil then break end
-        print(dataStore.Id, errorType, errorMessage)
+    while dataStore.State ~= nil do
+        if dataStore:Open(template) == nil then break end
         task.wait(5)
     end
 end
@@ -301,9 +301,9 @@ end
 game.Players.PlayerAdded:Connect(function(player)
     local dataStore = dataStoreModule.new("Player", player.UserId)
 
-    -- Detect if the session becomes inactive
-    dataStore.ActiveChanged:Connect(function(active)
-        if active == true then return end
+    -- Detect if the session closes
+    dataStore.StateChanged:Connect(function(state)
+        if state ~= false then return end
         AutomaticRetry(dataStore)
     end)
 
@@ -320,5 +320,4 @@ end)
 
 # To do
 
-Add compression ability
-Add modes (Automatic/Manual/Proxy)
+Add compression
