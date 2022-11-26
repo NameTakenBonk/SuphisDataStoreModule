@@ -1,3 +1,6 @@
+markdown: kramdown
+remote_theme: benbalter/retlab
+
 # SuphisDataStoreModule **BETA**
 
 Before I start, this is not mine but Suphi#3388 module, I got permission to put this up in github. Here is the discord: https://discord.gg/B3zmjPVBce
