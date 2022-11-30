@@ -8,6 +8,7 @@ Before I start, this is not mine but Suphi#3388 module, I got permission to put 
 * Auto save               Automatically saves cached data to the datastore based on the saveinterval property
 * Bind To Close           Automatically saves, closes and destroys all sessions when server starts to close
 * Reconcile               Fills in missing values from the template into the value property
+* Compression             Compress data to reduce character count
 * Save throttling         Impossible for save requests dropping
 * Multiple script support Safe to interact with the same datastore object from multiple scripts
 * Task batching           Tasks will be batched togever when possible
@@ -33,7 +34,7 @@ Go to releases and download the version(latest stable version prefered), or copy
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `0.4 [BETA]`
+Current version: `0.6 [BETA]`
 
 # Contructors
 
@@ -124,6 +125,12 @@ Version  string  ""  READ ONLY
 ```
 Unique identifying string of the current datastore save
 
+```lua
+CompressedValue  string  ""  READ ONLY
+```
+Compressed string that is updated before every save if compression is enabled by setting dataStore.Metadata.Compress = {["Level"] = 2, ["Decimals"] = 3, ["Safety"] = true}
+Level = 1 (allows mixed tables), Level = 2 (does not allow mixed tables but compresses arrays better), Decimals = amount of decimal places saved, Safety = replace delete character from strings
+
 # Events
 
 ```lua
@@ -132,41 +139,51 @@ StateChanged(state: string)  RBXScriptSignal
 Fires after state property has changed
 
 ```lua
-StateChanged(state: nil/boolean)  Signal
+Saving()  Signal
 ```
-Fires after state property has changed
+Fires just before the data is about to save
 
 # Methods
 
 ```lua
 Open(default: Variant)  nil/string
 ```
-Tries to open the session, optional default parameter, returns a string if fails
+Tries to open the session, optional template parameter will be reconciled onto the value, returns errorType and errorMessage if fails
 
 ```lua
 Load(default: Variant)  nil/string
 ```
-Loads the datastore value without the need to open the session, returns a string if fails
+Loads the datastore value without the need to open the session, optional template parameter will be reconciled onto the value, returns errorType and errorMessage if fails
 
 ```lua
 Save()  nil/string
 ```
-Force save the current value to the datastore, returns a string if fails
+Force save the current value to the datastore, returns errorType and errorMessage if fails
 
 ```lua
 Close(save: boolean)  nil/string
 ```
-Closes the session, set save parameter to false to prevent saving to the datastore, returns a string if session is destroyed
+Closes the session, returns errorType and errorMessage if session is destroyed
 
 ```lua
 Destroy(save: boolean)  nil
 ```
-Closes and destroys the session, set save parameter to false to prevent saving to the datastore, destroyed sessions will be locked
+Closes and destroys the session, destroyed sessions will be locked
+
+```lua
+Clone()  Variant
+```
+Clones the value property
 
 ```lua
 Reconcile(template: Variant)  nil
 ```
 Fills in missing values from the template into the value property
+
+```lua
+Usage()  number  number
+```
+How much datastore has been used, returns the character count and the second number is a number scaled from 0 to 1 [0 = 0% , 0.5 = 50%, 1 = 100%, 1.5 = 150%]
 
 # Simple Example
 
@@ -318,6 +335,37 @@ game.Players.PlayerRemoving:Connect(function(player)
 end)
 ```
 
+# Compression Example
+```lua
+local httpService = game:GetService("HttpService")
+
+local dataStoreModule = require(11671168253)
+local dataStore = dataStoreModule.new("name", "key")
+dataStore:Open()
+
+-- Enable compression
+dataStore.Metadata.Compress = {["Level"] = 2, ["Decimals"] = 3, ["Safety"] = true}
+-- Level can be set to 1 or 2 (1 will allow mixed tables / 2 will not allow mixed tables but will compress arrays better)
+-- Decimals will set the maximum number of decimals saved for numbers more decimals will use more data
+-- Safety will scan your strings for the delete character [] and replace them with space [ ]
+-- Setting to false will save faster but you could break the datastore if you have the delete character in any of your keys/strings
+-- Recommended to set safty to true if you save strings sent from the client
+
+dataStore.Value = {
+    ["Number"] = 1234567891234.987,
+    ["String"] = "Hello World!",
+    ["Array"] = {1234567891234567, 2345678912345678, 3456789123456789, 4567891234567891, 5678912345678912}
+}
+
+-- save datastore to force the CompressedValue to update
+dataStore:Destroy()
+
+print(dataStore.Value)
+-- print the datastore value
+print(httpService:JSONEncode(dataStore.Value)) 
+-- print the compressed value
+print(httpService:JSONEncode(dataStore.CompressedValue))
+```
+
 # To do
 
-Add compression
