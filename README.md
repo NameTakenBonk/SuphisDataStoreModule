@@ -34,7 +34,7 @@ Go to releases and download the version(latest stable version prefered), or copy
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `0.6 [BETA]`
+Current version: `0.7 [BETA]`
 
 # Contructors
 
@@ -139,7 +139,7 @@ StateChanged(state: string)  RBXScriptSignal
 Fires after state property has changed
 
 ```lua
-Saving()  Signal
+Saving(value: Variant)  Signal
 ```
 Fires just before the data is about to save
 
