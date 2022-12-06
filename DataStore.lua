@@ -1,4 +1,4 @@
--- Version: 0.6 (BETA)
+-- Version: 0.7 (BETA)
 
 local OpenTask, LoadTask, SaveTask, CloseTask, DestroyTask, AddTask, DoTasks
 local Lock, Unlock, Load, Save, StartSaveTimer, StopSaveTimer, SaveTimerEnded, StartLockTimer, StopLockTimer, LockTimerEnded, Clone, Reconcile, Compress, Decompress, Encode, Decode
@@ -82,8 +82,8 @@ constructor.new = function(name, scope, key)
 	dataStoreObject.Value = nil
 	dataStoreObject.Metadata = {}
 	dataStoreObject.UserIds = {}
-	dataStoreObject.SaveInterval = 30
-	dataStoreObject.LockInterval = 30
+	dataStoreObject.SaveInterval = 60
+	dataStoreObject.LockInterval = 60
 	dataStoreObject.SaveBeforeClose = 2
 	dataStoreObject.Id = id
 	dataStoreObject.Key = key
@@ -141,6 +141,7 @@ end
 property.SaveBeforeClose = function(proxy, value)
 	if type(value) ~= "number" then error("Attempt to set SaveBeforeClose failed: Passed value is not a number", 3) end
 	if value < 0 then error("Attempt to set SaveBeforeClose failed: Passed value is less then 0", 3) end
+	if value > 3 then error("Attempt to set SaveBeforeClose failed: Passed value is more then 3", 3) end
 	proxy[privateIndex].SaveBeforeClose = value
 end
 
@@ -319,7 +320,7 @@ Load = function(dataStoreObject)
 end
 
 Save = function(dataStoreObject)
-	dataStoreObject.Saving:Fire()
+	dataStoreObject.Saving:Fire(dataStoreObject.Value)
 	if dataStoreObject.Value == nil then
 		local success, value, info = pcall(dataStoreObject.DataStore.RemoveAsync, dataStoreObject.DataStore, dataStoreObject.Key)
 		if success == false then warn("DataStore(" .. dataStoreObject.Id .. "):", value) return "DataStore", value end
