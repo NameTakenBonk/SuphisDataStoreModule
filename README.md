@@ -116,11 +116,6 @@ UpdatedTime  number  0  READ ONLY
 Number of milliseconds from epoch to when the datastore was updated
 
 ```lua
-SavedTime  number  os.clock()  READ ONLY
-```
-CPU time of when the datastore was last saved
-
-```lua
 Version  string  ""  READ ONLY
 ```
 Unique identifying string of the current datastore save
