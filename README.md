@@ -34,7 +34,7 @@ Go to releases and download the version(latest stable version prefered), or copy
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `0.7 [BETA]`
+Current version: `0.8 [BETA]`
 
 # Contructors
 
@@ -76,14 +76,14 @@ UserIds  table  {}
 An array of UserIds associated with the key
 
 ```lua
-SaveInterval  number  30
+SaveInterval number  30
 ```
 Interval in seconds the datastore will automatically save (set to 0 to disable automatic saving)
 
 ```lua
-LockInterval  number  30
+SaveWhenClosing boolean  true
 ```
-Interval in seconds the memorystore will update the session lock
+Automatically save the data when the session is closed or destroyed
 
 ```lua
 SaveBeforeClose  boolean  true
@@ -362,5 +362,8 @@ print(httpService:JSONEncode(dataStore.Value))
 print(httpService:JSONEncode(dataStore.CompressedValue))
 ```
 
-# To do
+# Update
 
+Improved safety
+Sessions are more stable
+SaveBeforeClose renamed to SaveWhenClosing and is now a boolean
