@@ -76,17 +76,17 @@ UserIds  table  {}
 An array of UserIds associated with the key
 
 ```lua
-SaveInterval number  30
+SaveInterval number  60
 ```
 Interval in seconds the datastore will automatically save (set to 0 to disable automatic saving)
 
 ```lua
-SaveWhenClosing boolean  true
+LockInterval  number  60
 ```
-Automatically save the data when the session is closed or destroyed
+Interval in seconds the memorystore will update the session lock
 
 ```lua
-SaveBeforeClose  boolean  true
+SaveWhenClosing boolean  true
 ```
 Automatically save the data when the session is closed or destroyed
 
@@ -161,7 +161,7 @@ Close(save: boolean)  nil/string
 Closes the session, returns errorType and errorMessage if session is destroyed
 
 ```lua
-Destroy(save: boolean)  nil
+Destroy()  nil
 ```
 Closes and destroys the session, destroyed sessions will be locked
 
