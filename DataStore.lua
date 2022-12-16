@@ -1,4 +1,4 @@
--- Version: 0.7 (BETA)
+-- Version: 0.8 (BETA)
 
 local OpenTask, LoadTask, SaveTask, CloseTask, DestroyTask, AddTask, DoTasks
 local Lock, Unlock, Load, Save, StartSaveTimer, StopSaveTimer, SaveTimerEnded, StartLockTimer, StopLockTimer, LockTimerEnded, Clone, Reconcile, Compress, Decompress, Encode, Decode
@@ -10,7 +10,7 @@ local privateIndex, dataStoreMetatable = {}, {}
 local constructor, property, dataStore = {}, {}, {}
 local dataStores = {}
 local permissions = {
-	["Value"] = true, ["Metadata"] = true, ["UserIds"] = true, ["SaveInterval"] = true, ["LockInterval"] = true, ["SaveBeforeClose"] = true,
+	["Value"] = true, ["Metadata"] = true, ["UserIds"] = true, ["SaveInterval"] = true, ["LockInterval"] = true, ["SaveWhenClosing"] = true,
 	["Id"] = false, ["Key"] = false, ["State"] = false, ["CreatedTime"] = false, ["UpdatedTime"] = false, ["Version"] = false, ["CompressedValue"] = false,
 	["StateChanged"] = false, ["Saving"] = false,
 	["Open"] = false, ["Load"] = false, ["Save"] = false, ["Close"] = false, ["Destroy"] = false, ["Clone"] = false, ["Reconcile"] = false, ["Usage"] = false,
@@ -38,7 +38,7 @@ export type DataStore = {
 	UserIds: {[number]: number},
 	SaveInterval: number,
 	LockInterval: number,
-	SaveBeforeClose: number,
+	SaveWhenClosing: boolean,
 	Id: string,
 	Key: string,
 	State: boolean?,
@@ -84,7 +84,7 @@ constructor.new = function(name, scope, key)
 	dataStoreObject.UserIds = {}
 	dataStoreObject.SaveInterval = 60
 	dataStoreObject.LockInterval = 60
-	dataStoreObject.SaveBeforeClose = 2
+	dataStoreObject.SaveWhenClosing = true
 	dataStoreObject.Id = id
 	dataStoreObject.Key = key
 	dataStoreObject.State = false
@@ -138,11 +138,9 @@ property.LockInterval = function(proxy, value)
 	proxy[privateIndex].LockInterval = value
 end
 
-property.SaveBeforeClose = function(proxy, value)
-	if type(value) ~= "number" then error("Attempt to set SaveBeforeClose failed: Passed value is not a number", 3) end
-	if value < 0 then error("Attempt to set SaveBeforeClose failed: Passed value is less then 0", 3) end
-	if value > 3 then error("Attempt to set SaveBeforeClose failed: Passed value is more then 3", 3) end
-	proxy[privateIndex].SaveBeforeClose = value
+property.SaveWhenClosing = function(proxy, value)
+	if type(value) ~= "boolean" then error("Attempt to set SaveWhenClosing failed: Passed value is not a boolean", 3) end
+	proxy[privateIndex].SaveWhenClosing = value
 end
 
 
@@ -200,12 +198,12 @@ end
 OpenTask = function(dataStoreObject, parameters)
 	if dataStoreObject.State == true then return end
 	if dataStoreObject.State == nil then return "State", "Destroyed" end
-	StartLockTimer(dataStoreObject)
-	local errorType, errorMessage = Lock(dataStoreObject)
-	if errorType ~= nil then StopLockTimer(dataStoreObject) return errorType, errorMessage end
-	local errorType, errorMessage = Load(dataStoreObject)
-	if errorType ~= nil then StopLockTimer(dataStoreObject) Unlock(dataStoreObject) return errorType, errorMessage end
+	local errorType, errorMessage = Load(dataStoreObject, 3)
+	if errorType ~= nil then return errorType, errorMessage end
+	local errorType, errorMessage = Lock(dataStoreObject, 3)
+	if errorType ~= nil then return errorType, errorMessage end
 	dataStoreObject.State = true
+	StartLockTimer(dataStoreObject)
 	StartSaveTimer(dataStoreObject)
 	for i, parameter in parameters do
 		if dataStoreObject.Value == nil then
@@ -220,7 +218,7 @@ end
 LoadTask = function(dataStoreObject, parameters)
 	if dataStoreObject.State == nil then return "State", "Destroyed" end
 	if dataStoreObject.State == true then return "State", "Open" end
-	local errorType, errorMessage = Load(dataStoreObject)
+	local errorType, errorMessage = Load(dataStoreObject, 3)
 	if errorType ~= nil then return errorType, errorMessage end
 	for i, parameter in parameters do
 		if dataStoreObject.Value == nil then
@@ -234,7 +232,8 @@ end
 SaveTask = function(dataStoreObject, parameters)
 	if dataStoreObject.State == nil then return "State", "Destroyed" end
 	if dataStoreObject.State == false then return "State", "Closed" end
-	local errorType, errorMessage = Save(dataStoreObject)
+	StopSaveTimer(dataStoreObject)
+	local errorType, errorMessage = Save(dataStoreObject, 3)
 	StartSaveTimer(dataStoreObject)
 	return errorType, errorMessage
 end
@@ -245,8 +244,8 @@ CloseTask = function(dataStoreObject, parameters)
 	dataStoreObject.State = false
 	StopLockTimer(dataStoreObject)
 	StopSaveTimer(dataStoreObject)
-	for i = 1, dataStoreObject.SaveBeforeClose do if Save(dataStoreObject) == nil then break end end
-	Unlock(dataStoreObject)
+	if dataStoreObject.SaveWhenClosing == true then Save(dataStoreObject, 3) end
+	Unlock(dataStoreObject, 3)
 	dataStoreObject.StateChanged:Fire(false)
 end
 
@@ -256,8 +255,8 @@ DestroyTask = function(dataStoreObject, parameters)
 		dataStoreObject.State = nil
 		StopLockTimer(dataStoreObject)
 		StopSaveTimer(dataStoreObject)
-		for i = 1, dataStoreObject.SaveBeforeClose do if Save(dataStoreObject) == nil then break end end
-		Unlock(dataStoreObject)
+		if dataStoreObject.SaveWhenClosing == true then Save(dataStoreObject, 3) end
+		Unlock(dataStoreObject, 3)
 	end
 	dataStoreObject.State = nil
 	dataStores[dataStoreObject.Id] = nil
@@ -288,22 +287,35 @@ DoTasks = function(dataStoreObject)
 	dataStoreObject.Running = false
 end
 
-Lock = function(dataStoreObject)
-	local jobId = nil
-	local success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "JobId", function(value) jobId = value return if jobId == nil or jobId == game.JobId then game.JobId else nil end, dataStoreObject.LockInterval + 30)
+Lock = function(dataStoreObject, attempts)
+	local success, value, jobId = nil, nil, nil
+	for i = 1, attempts do
+		if i > 1 then task.wait(1) end
+		success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "JobId", function(value) jobId = value return if jobId == nil or jobId == game.JobId then game.JobId else nil end, dataStoreObject.LockInterval + 30)
+		if success == true then break end
+	end
 	if success == false then warn("MemoryStore(" .. dataStoreObject.Id .. "):", value) return "MemoryStore", value end
 	if value == nil then return "Locked", jobId end
 end
 
-Unlock = function(dataStoreObject)
-	local jobId = nil
-	local success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "JobId", function(value) jobId = value return if jobId == game.JobId then game.JobId else nil end, 0)
+Unlock = function(dataStoreObject, attempts)
+	local success, value, jobId = nil, nil, nil
+	for i = 1, attempts do
+		if i > 1 then task.wait(1) end
+		success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "JobId", function(value) jobId = value return if jobId == game.JobId then game.JobId else nil end, 0)
+		if success == true then break end
+	end
 	if success == false then warn("MemoryStore(" .. dataStoreObject.Id .. "):", value) return "MemoryStore", value end
 	if value == nil and jobId ~= nil then return "Locked", jobId end
 end
 
-Load = function(dataStoreObject)
-	local success, value, info = pcall(dataStoreObject.DataStore.GetAsync, dataStoreObject.DataStore, dataStoreObject.Key)
+Load = function(dataStoreObject, attempts)
+	local success, value, info = nil, nil, nil
+	for i = 1, attempts do
+		if i > 1 then task.wait(1) end
+		success, value, info = pcall(dataStoreObject.DataStore.GetAsync, dataStoreObject.DataStore, dataStoreObject.Key)
+		if success == true then break end
+	end
 	if success == false then warn("DataStore(" .. dataStoreObject.Id .. "):", value) return "DataStore", value end
 	if info == nil then
 		dataStoreObject.Metadata, dataStoreObject.UserIds, dataStoreObject.CreatedTime, dataStoreObject.UpdatedTime, dataStoreObject.Version = {}, {}, 0, 0, ""
@@ -319,15 +331,24 @@ Load = function(dataStoreObject)
 	end
 end
 
-Save = function(dataStoreObject)
+Save = function(dataStoreObject, attempts)
 	dataStoreObject.Saving:Fire(dataStoreObject.Value)
+	local success, value, info = nil, nil, nil
 	if dataStoreObject.Value == nil then
-		local success, value, info = pcall(dataStoreObject.DataStore.RemoveAsync, dataStoreObject.DataStore, dataStoreObject.Key)
+		for i = 1, attempts do
+			if i > 1 then task.wait(1) end
+			success, value, info = pcall(dataStoreObject.DataStore.RemoveAsync, dataStoreObject.DataStore, dataStoreObject.Key)
+			if success == true then break end
+		end
 		if success == false then warn("DataStore(" .. dataStoreObject.Id .. "):", value) return "DataStore", value end
 		dataStoreObject.Metadata, dataStoreObject.UserIds, dataStoreObject.CreatedTime, dataStoreObject.UpdatedTime, dataStoreObject.Version = {}, {}, 0, 0, ""
 	elseif type(dataStoreObject.Metadata.Compress) ~= "table" then
 		dataStoreObject.Options:SetMetadata(dataStoreObject.Metadata)
-		local success, value = pcall(dataStoreObject.DataStore.SetAsync, dataStoreObject.DataStore, dataStoreObject.Key, dataStoreObject.Value, dataStoreObject.UserIds, dataStoreObject.Options)
+		for i = 1, attempts do
+			if i > 1 then task.wait(1) end
+			success, value = pcall(dataStoreObject.DataStore.SetAsync, dataStoreObject.DataStore, dataStoreObject.Key, dataStoreObject.Value, dataStoreObject.UserIds, dataStoreObject.Options)
+			if success == true then break end
+		end	
 		if success == false then warn("DataStore(" .. dataStoreObject.Id .. "):", value) return "DataStore", value end
 		dataStoreObject.Version = value
 	else
@@ -336,7 +357,11 @@ Save = function(dataStoreObject)
 		local safety = if dataStoreObject.Metadata.Compress.Safety == nil then true else dataStoreObject.Metadata.Compress.Safety
 		dataStoreObject.CompressedValue = Compress(dataStoreObject.Value, level, decimals, safety)
 		dataStoreObject.Options:SetMetadata(dataStoreObject.Metadata)
-		local success, value = pcall(dataStoreObject.DataStore.SetAsync, dataStoreObject.DataStore, dataStoreObject.Key, dataStoreObject.CompressedValue, dataStoreObject.UserIds, dataStoreObject.Options)
+		for i = 1, attempts do
+			if i > 1 then task.wait(1) end
+			success, value = pcall(dataStoreObject.DataStore.SetAsync, dataStoreObject.DataStore, dataStoreObject.Key, dataStoreObject.CompressedValue, dataStoreObject.UserIds, dataStoreObject.Options)
+			if success == true then break end
+		end
 		if success == false then warn("DataStore(" .. dataStoreObject.Id .. "):", value) return "DataStore", value end
 		dataStoreObject.Version = value
 	end
@@ -372,9 +397,11 @@ end
 
 LockTimerEnded = function(dataStoreObject)
 	dataStoreObject.LockThread = nil
-	StartLockTimer(dataStoreObject)
-	if Lock(dataStoreObject) == nil then return end
-	AddTask(dataStoreObject, CloseTask)
+	if Lock(dataStoreObject, 3) == nil then
+		StartLockTimer(dataStoreObject)
+	else
+		AddTask(dataStoreObject, CloseTask)
+	end
 end
 
 Clone = function(original)
