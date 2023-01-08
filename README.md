@@ -30,13 +30,20 @@ So the way **Suphi's DataStore Module** works is that it uses the `MemoryStore` 
 
 # Download
 
-Go to releases and download the version(latest stable version prefered), or copy the code in the repo. Alternatively without downloading you can do:
+Go to releases and download the version(latest stable version prefered), or copy the code(Both signal and datastoremodule, make signal the child of the main module.) in the repo. Alternatively without downloading you can do:
+
+https://create.roblox.com/marketplace/asset/11671168253/
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `0.8 [BETA]`
+Current version: `0.9 [BETA]`
 
 # Contructors
+
+```lua
+Id  string  "8-4-4-4-12"  READ ONLY
+```
+Unique identifying string
 
 ```lua
 new(name: string, scope: string, key: string)
@@ -141,22 +148,22 @@ Fires just before the data is about to save
 # Methods
 
 ```lua
-Open(default: Variant)  nil/string
+Open(default: Variant)  nil/string  nil/string
 ```
 Tries to open the session, optional template parameter will be reconciled onto the value, returns errorType and errorMessage if fails
 
 ```lua
-Load(default: Variant)  nil/string
+Load(default: Variant)  nil/string  nil/string
 ```
 Loads the datastore value without the need to open the session, optional template parameter will be reconciled onto the value, returns errorType and errorMessage if fails
 
 ```lua
-Save()  nil/string
+Save()  nil/string  nil/string
 ```
 Force save the current value to the datastore, returns errorType and errorMessage if fails
 
 ```lua
-Close(save: boolean)  nil/string
+Close(save: boolean)  nil/string  nil/string
 ```
 Closes the session, returns errorType and errorMessage if session is destroyed
 
@@ -364,6 +371,5 @@ print(httpService:JSONEncode(dataStore.CompressedValue))
 
 # Update
 
-Improved safety
-Sessions are more stable
-SaveBeforeClose renamed to SaveWhenClosing and is now a boolean
+its now safe to use with actors
+module has a new Id property
