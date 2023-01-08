@@ -1,8 +1,8 @@
--- Version: 0.8 (BETA)
+-- Version: 0.9 (BETA)
 
 local OpenTask, LoadTask, SaveTask, CloseTask, DestroyTask, AddTask, DoTasks
 local Lock, Unlock, Load, Save, StartSaveTimer, StopSaveTimer, SaveTimerEnded, StartLockTimer, StopLockTimer, LockTimerEnded, Clone, Reconcile, Compress, Decompress, Encode, Decode
-local signalModule = require(11670710927)
+local signalModule = require(script.Signal)
 local dataStoreService = game:GetService("DataStoreService")
 local memoryStoreService = game:GetService("MemoryStoreService")
 local httpService = game:GetService("HttpService")
@@ -28,6 +28,7 @@ local base = #characters + 1
 
 -- Types
 export type Constructor = {
+	Id: string,
 	new: (name: string, scope: string, key: string?) -> DataStore,
 	find: (name: string, scope: string, key: string?) -> DataStore?,
 }
@@ -74,6 +75,8 @@ end
 
 
 -- Constructor
+constructor.Id = httpService:GenerateGUID(false)
+
 constructor.new = function(name, scope, key)
 	if key == nil then key, scope = scope, nil end
 	local id = name .. "/" .. (scope or "global") .. "/" .. key
@@ -288,25 +291,25 @@ DoTasks = function(dataStoreObject)
 end
 
 Lock = function(dataStoreObject, attempts)
-	local success, value, jobId = nil, nil, nil
+	local success, value, id = nil, nil, nil
 	for i = 1, attempts do
 		if i > 1 then task.wait(1) end
-		success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "JobId", function(value) jobId = value return if jobId == nil or jobId == game.JobId then game.JobId else nil end, dataStoreObject.LockInterval + 30)
+		success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "Id", function(value) id = value return if id == nil or id == constructor.Id then constructor.Id else nil end, dataStoreObject.LockInterval + 30)
 		if success == true then break end
 	end
 	if success == false then warn("MemoryStore(" .. dataStoreObject.Id .. "):", value) return "MemoryStore", value end
-	if value == nil then return "Locked", jobId end
+	if value == nil then return "Locked", id end
 end
 
 Unlock = function(dataStoreObject, attempts)
-	local success, value, jobId = nil, nil, nil
+	local success, value, id = nil, nil, nil
 	for i = 1, attempts do
 		if i > 1 then task.wait(1) end
-		success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "JobId", function(value) jobId = value return if jobId == game.JobId then game.JobId else nil end, 0)
+		success, value = pcall(dataStoreObject.MemoryStore.UpdateAsync, dataStoreObject.MemoryStore, "Id", function(value) id = value return if id == constructor.Id then constructor.Id else nil end, 0)
 		if success == true then break end
 	end
 	if success == false then warn("MemoryStore(" .. dataStoreObject.Id .. "):", value) return "MemoryStore", value end
-	if value == nil and jobId ~= nil then return "Locked", jobId end
+	if value == nil and id ~= nil then return "Locked", id end
 end
 
 Load = function(dataStoreObject, attempts)
