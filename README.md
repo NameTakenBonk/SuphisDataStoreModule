@@ -36,7 +36,7 @@ https://create.roblox.com/marketplace/asset/11671168253/
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `0.9 [BETA]`
+Current version: `0.10 [BETA]`
 
 # Contructors
 
@@ -93,6 +93,11 @@ LockInterval  number  60
 Interval in seconds the memorystore will update the session lock
 
 ```lua
+FailsBeforeClose  number  5
+```
+How many times the memorystore needs to fail before the session closes
+
+```lua
 SaveWhenClosing boolean  true
 ```
 Automatically save the data when the session is closed or destroyed
@@ -111,6 +116,11 @@ Key used for the datastore
 State  string  "Closed"  READ ONLY
 ```
 Current state of the session 
+
+```lua
+AttemptsRemaining  number  0  READ ONLY
+```
+How many memorystore attempts remaining before the session closes
 
 ```lua
 CreatedTime  number  0  READ ONLY
@@ -309,24 +319,20 @@ local template = {
     DeveloperProducts = {},
 }
 
-local function AutomaticRetry(dataStore)
-    -- Keep trying to re-open if the state is not destroyed
-    while dataStore.State ~= nil do
-        if dataStore:Open(template) == nil then break end
-        task.wait(5)
-    end
-end
-
 game.Players.PlayerAdded:Connect(function(player)
     local dataStore = dataStoreModule.new("Player", player.UserId)
 
-    -- Detect if the session closes
     dataStore.StateChanged:Connect(function(state)
-        if state ~= false then return end
-        AutomaticRetry(dataStore)
+        -- Keep trying to re-open if the state is closed
+        while dataStore.State == false do
+            if dataStore:Open(template) ~= nil then task.wait(5) end
+        end
     end)
 
-    AutomaticRetry(dataStore)
+    -- Keep trying to re-open if the state is closed
+    while dataStore.State == false do
+        if dataStore:Open(template) ~= nil then task.wait(5) end
+    end
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
@@ -371,5 +377,9 @@ print(httpService:JSONEncode(dataStore.CompressedValue))
 
 # Update
 
-its now safe to use with actors
-module has a new Id property
+* added FailsBeforeClose & AttemptsRemaining
+* this should make the session more resilient to outages
+* the time it takes for a session to time out is now (LockInterval + 1) * FailsBeforeClose + 30 seconds
+* so by default its 61 * 5 + 30 = 335 seconds
+* if the MemoryStore server goes down and once AttemptsRemaining goes down to 0 the session will close
+* but if the MemoryStore server comes back up within 300 seconds the session will continue like nothing happened
