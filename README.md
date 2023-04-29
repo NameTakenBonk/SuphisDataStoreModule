@@ -24,9 +24,7 @@ So the way **Suphi's DataStore Module** works is that it uses the `MemoryStore` 
 
 **ProfileService** relays on ``RunService.Heartbeat`` and has a few ``while true do task.wait()`` end. on the other hand **Suphi's DataStore Module** is 100% event driven making it super lightweight
 
-**ProfileService** does many DeepTableCopys where it loops your data and copys all values into new tables which can be an exspensive operation for very large tables **Suphi's DataStore Module** was designed in such a way that it never has to DeepTableCopy
-
-**ProfileService** forces you to save your data as a table where **Suphi's DataStore Module** lets you set the datastore value directly where you can save numbers, strings, booleans or tables
+**ProfileService** saves data along side your data and forces you to save your data as a table where **Suphi's DataStore Module** gives you full access to your datastores value and lets you set the datastore value directly with numbers, strings, booleans, tables or nil **Suphi's DataStore Module** will not save any data inside your datastore
 
 # Download
 
@@ -39,11 +37,6 @@ local dataStoreModule = require(11671168253)
 Current version: `0.10 [BETA]`
 
 # Contructors
-
-```lua
-Id  string  "8-4-4-4-12"  READ ONLY
-```
-Unique identifying string
 
 ```lua
 new(name: string, scope: string, key: string)
@@ -93,12 +86,12 @@ LockInterval  number  60
 Interval in seconds the memorystore will update the session lock
 
 ```lua
-FailsBeforeClose  number  5
+LockAttempts  number  5
 ```
 How many times the memorystore needs to fail before the session closes
 
 ```lua
-SaveWhenClosing boolean  true
+SaveOnClose  boolean  true
 ```
 Automatically save the data when the session is closed or destroyed
 
@@ -108,14 +101,19 @@ Id  string  "Name/Scope/Key"  READ ONLY
 Unique identifying string
 
 ```lua
+UniqueId  string  "8-4-4-4-12"  READ ONLY
+```
+Unique identifying string
+
+```lua
 Key  string  "Key"  READ ONLY
 ```
 Key used for the datastore
 
 ```lua
-State  string  "Closed"  READ ONLY
+State  nil/boolean  false  READ ONLY
 ```
-Current state of the session 
+Current state of the session [nil = Destroyed] [false = Closed] [true = Open]
 
 ```lua
 AttemptsRemaining  number  0  READ ONLY
@@ -146,14 +144,19 @@ Level = 1 (allows mixed tables), Level = 2 (does not allow mixed tables but comp
 # Events
 
 ```lua
-StateChanged(state: string)  RBXScriptSignal
+StateChanged(state: nil/boolean, object: DataStore)  Signal
 ```
 Fires after state property has changed
 
 ```lua
-Saving(value: Variant)  Signal
+Saving(value: Variant, object: DataStore)  Signal
 ```
-Fires just before the data is about to save
+Fires just before the value is about to save
+
+```lua
+AttemptsChanged(AttemptsRemaining: number, object: DataStore)  Signal
+```
+Fires when the AttemptsRemaining property has changed
 
 # Methods
 
@@ -319,27 +322,22 @@ local template = {
     DeveloperProducts = {},
 }
 
-game.Players.PlayerAdded:Connect(function(player)
-    local dataStore = dataStoreModule.new("Player", player.UserId)
-
-    dataStore.StateChanged:Connect(function(state)
-        -- Keep trying to re-open if the state is closed
-        while dataStore.State == false do
-            if dataStore:Open(template) ~= nil then task.wait(5) end
-        end
-    end)
-
-    -- Keep trying to re-open if the state is closed
-    while dataStore.State == false do
+local function StateChanged(state, dataStore)
+    while dataStore.State == false do -- Keep trying to re-open if the state is closed
         if dataStore:Open(template) ~= nil then task.wait(5) end
     end
+end
+
+game.Players.PlayerAdded:Connect(function(player)
+    local dataStore = dataStoreModule.new("Player", player.UserId)
+    dataStore.StateChanged:Connect(StateChanged)
+    StateChanged(dataStore.State, dataStore)
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
     local dataStore = dataStoreModule.find("Player", player.UserId)
     if dataStore == nil then return end
-    -- If the player leaves datastore object is destroyed allowing the retry loop to stop
-    dataStore:Destroy()
+    dataStore:Destroy() -- If the player leaves datastore object is destroyed allowing the retry loop to stop
 end)
 ```
 
@@ -366,7 +364,7 @@ dataStore.Value = {
 }
 
 -- save datastore to force the CompressedValue to update
-dataStore:Destroy()
+dataStore:Save()
 
 print(dataStore.Value)
 -- print the datastore value
@@ -376,10 +374,21 @@ print(httpService:JSONEncode(dataStore.CompressedValue))
 ```
 
 # Update
+From 0.10 to 0.14
 
-* added FailsBeforeClose & AttemptsRemaining
-* this should make the session more resilient to outages
-* the time it takes for a session to time out is now (LockInterval + 1) * FailsBeforeClose + 30 seconds
-* so by default its 61 * 5 + 30 = 335 seconds
-* if the MemoryStore server goes down and once AttemptsRemaining goes down to 0 the session will close
-* but if the MemoryStore server comes back up within 300 seconds the session will continue like nothing happened
+# * 0.11
+* SaveWhenClosing renamed to SaveOnClose
+* FailsBeforeClose renamed to LockAttempts
+* Added AttemptsChanged event
+* Saving, StateChanged and AttemptsChanged events now return the datastore session object
+* bug fix
+
+# * 0.12
+* Lock loop accuracy improved this allow us to reduce the lock time from
+* (LockInterval + 1) * LockAttempts + 30 seconds to LockInterval * LockAttempts + 30 seconds
+
+# * 0.13
+* Added a internal save throttle to prevent "Datastore request was added to queue." warning
+
+# * 0.14
+* Doing dataStoreModule.new("Name", "Key") after doing dataStore:Destroy() will now always give you a brand new session object even if the previous session has not yet saved
