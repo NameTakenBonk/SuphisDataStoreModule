@@ -34,7 +34,7 @@ https://create.roblox.com/marketplace/asset/11671168253/
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `0.10 [BETA]`
+Current version: `0.14 [BETA]`
 
 # Contructors
 
