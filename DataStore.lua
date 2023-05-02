@@ -1,10 +1,10 @@
--- Version: 0.14 (BETA)
+-- Version: 0.15 (BETA)
 
 local signalModule = require(script.Signal)
 local dataStoreService = game:GetService("DataStoreService")
 local memoryStoreService = game:GetService("MemoryStoreService")
 local httpService = game:GetService("HttpService")
-local OpenTask, LoadTask, SaveTask, CloseTask, DestroyTask, AddTask, RunTasks, Lock, Unlock, Load, Save, StartSaveTimer, StopSaveTimer, SaveTimerEnded, StartLockTimer, StopLockTimer, LockTimerEnded, Clone, Reconcile, Compress, Decompress, Encode, Decode
+local OpenTask, LoadTask, LockTask, SaveTask, CloseTask, DestroyTask, AddTask, RunTasks, Lock, Unlock, Load, Save, StartSaveTimer, StopSaveTimer, SaveTimerEnded, StartLockTimer, StopLockTimer, LockTimerEnded, Clone, Reconcile, Compress, Decompress, Encode, Decode
 local dataStoreMetatable, constructor, dataStoreGet, dataStoreSet
 local private = {}
 local characters = {[0] = "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","!","$","%","&","'",",",".","/",":",";","=","?","@","[","]","^","_","`","{","}","~"}
@@ -67,8 +67,8 @@ dataStoreMetatable = {
 -- Constructor
 constructor = {
 	new = function(name, scope, key)
-		if key == nil then key, scope = scope, nil end
-		local id = name .. "/" .. (scope or "global") .. "/" .. key
+		if key == nil then key, scope = scope, "global" end
+		local id = name .. "/" .. scope .. "/" .. key
 		if dataStores[id] ~= nil then return dataStores[id].Proxy end
 		local dataStore = {
 			["Value"] = nil,
@@ -93,6 +93,7 @@ constructor = {
 			["Tasks"] = {},
 			["SaveThread"] = nil,
 			["LockThread"] = nil,
+			["LockTime"] = -math.huge,
 			["SaveTime"] = -math.huge,
 			["ActiveLockInterval"] = 0,
 			["Running"] = false,
@@ -106,8 +107,8 @@ constructor = {
 		return dataStore.Proxy
 	end,
 	find = function(name, scope, key)
-		if key == nil then key, scope = scope, nil end
-		local id = name .. "/" .. (scope or "global") .. "/" .. key
+		if key == nil then key, scope = scope, "global" end
+		local id = name .. "/" .. scope .. "/" .. key
 		if dataStores[id] ~= nil then return dataStores[id].Proxy end
 	end,
 }
@@ -253,6 +254,27 @@ LoadTask = function(dataStore, parameters)
 	end
 end
 
+LockTask = function(dataStore, parameters)
+	if dataStore.State == nil then return "State", "Destroyed" end
+	if dataStore.State == false then return "State", "Closed" end
+	local attemptsRemaining = dataStore.AttemptsRemaining
+	local errorType, errorData = Lock(dataStore, 3)
+	if errorType ~= nil then dataStore.AttemptsRemaining -= 1 end
+	if dataStore.AttemptsRemaining ~= attemptsRemaining then dataStore.AttemptsChanged:Fire(dataStore.AttemptsRemaining, dataStore.Proxy) end
+	if dataStore.AttemptsRemaining > 0 then
+		local lockTime = dataStore.LockTime - dataStore.AttemptsRemaining * dataStore.ActiveLockInterval
+		StartLockTimer(dataStore, lockTime - time() + dataStore.ActiveLockInterval)
+	else
+		dataStore.State = false
+		StopLockTimer(dataStore)
+		StopSaveTimer(dataStore)
+		if dataStore.SaveOnClose == true then Save(dataStore, 3) end
+		Unlock(dataStore, 3)
+		dataStore.StateChanged:Fire(false, dataStore.Proxy)
+	end
+	return errorType, errorData
+end
+
 SaveTask = function(dataStore, parameters)
 	if dataStore.State == nil then return "State", "Destroyed" end
 	if dataStore.State == false then return "State", "Closed" end
@@ -312,14 +334,16 @@ RunTasks = function(dataStore)
 end
 
 Lock = function(dataStore, attempts)
-	local success, value, id, lockInterval, lockAttempts = nil, nil, nil, dataStore.LockInterval, dataStore.LockAttempts
+	local success, value, id, lockTime, lockInterval, lockAttempts = nil, nil, nil, nil, dataStore.LockInterval, dataStore.LockAttempts
 	for i = 1, attempts do
 		if i > 1 then task.wait(1) end
+		lockTime = time()
 		success, value = pcall(dataStore.MemoryStore.UpdateAsync, dataStore.MemoryStore, "Id", function(value) id = value return if id == nil or id == dataStore.UniqueId then dataStore.UniqueId else nil end, lockInterval * lockAttempts + 30)
 		if success == true then break end
 	end
 	if success == false then warn("MemoryStore(" .. dataStore.Id .. "):", value) return "MemoryStore", value end
 	if value == nil then return "Locked", id end
+	dataStore.LockTime = lockTime + lockInterval * lockAttempts
 	dataStore.ActiveLockInterval = lockInterval
 	dataStore.AttemptsRemaining = lockAttempts
 end
@@ -415,7 +439,7 @@ end
 
 StartLockTimer = function(dataStore, duration)
 	if dataStore.LockThread ~= nil then task.cancel(dataStore.LockThread) end
-	dataStore.LockThread = task.delay(duration, LockTimerEnded, dataStore, time() + duration)
+	dataStore.LockThread = task.delay(duration, LockTimerEnded, dataStore)
 end
 
 StopLockTimer = function(dataStore)
@@ -424,12 +448,9 @@ StopLockTimer = function(dataStore)
 	dataStore.LockThread = nil
 end
 
-LockTimerEnded = function(dataStore, endTime)
+LockTimerEnded = function(dataStore)
 	dataStore.LockThread = nil
-	local attemptsRemaining = dataStore.AttemptsRemaining
-	if Lock(dataStore, 2) ~= nil then dataStore.AttemptsRemaining -= 1 end
-	if dataStore.AttemptsRemaining ~= attemptsRemaining then dataStore.AttemptsChanged:Fire(dataStore.AttemptsRemaining, dataStore.Proxy) end
-	if dataStore.AttemptsRemaining > 0 then StartLockTimer(dataStore, dataStore.ActiveLockInterval - time() + endTime) else AddTask(dataStore, CloseTask) end
+	AddTask(dataStore, LockTask)
 end
 
 Clone = function(original)
