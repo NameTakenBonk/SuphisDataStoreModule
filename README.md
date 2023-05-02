@@ -34,7 +34,7 @@ https://create.roblox.com/marketplace/asset/11671168253/
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `0.14 [BETA]`
+Current version: `0.15 [BETA]`
 
 # Contructors
 
@@ -373,22 +373,5 @@ print(httpService:JSONEncode(dataStore.Value))
 print(httpService:JSONEncode(dataStore.CompressedValue))
 ```
 
-# Update
-From 0.10 to 0.14
-
-# * 0.11
-* SaveWhenClosing renamed to SaveOnClose
-* FailsBeforeClose renamed to LockAttempts
-* Added AttemptsChanged event
-* Saving, StateChanged and AttemptsChanged events now return the datastore session object
-* bug fix
-
-# * 0.12
-* Lock loop accuracy improved this allow us to reduce the lock time from
-* (LockInterval + 1) * LockAttempts + 30 seconds to LockInterval * LockAttempts + 30 seconds
-
-# * 0.13
-* Added a internal save throttle to prevent "Datastore request was added to queue." warning
-
-# * 0.14
-* Doing dataStoreModule.new("Name", "Key") after doing dataStore:Destroy() will now always give you a brand new session object even if the previous session has not yet saved
+# Update 0.15
+* Fixed a bug where sometimes closing or destroying a session would still keep the session locked until the server shutdown
