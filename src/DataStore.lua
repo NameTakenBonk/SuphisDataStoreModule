@@ -1,31 +1,32 @@
--- Version: 0.15 (BETA)
-
-local signalModule = require(script.Signal)
-local dataStoreService = game:GetService("DataStoreService")
-local memoryStoreService = game:GetService("MemoryStoreService")
-local httpService = game:GetService("HttpService")
-local OpenTask, LoadTask, LockTask, SaveTask, CloseTask, DestroyTask, AddTask, RunTasks, Lock, Unlock, Load, Save, StartSaveTimer, StopSaveTimer, SaveTimerEnded, StartLockTimer, StopLockTimer, LockTimerEnded, Clone, Reconcile, Compress, Decompress, Encode, Decode
-local dataStoreMetatable, constructor, dataStoreGet, dataStoreSet
-local private = {}
+-- Variables
+local Proxy = require(script.Proxy)
+local Signal = require(script.Signal)
+local SynchronousTaskManager = require(script.SynchronousTaskManager)
+local dataStoreService, memoryStoreService, httpService = game:GetService("DataStoreService"), game:GetService("MemoryStoreService"), game:GetService("HttpService")
+local Constructor, DataStore = {}, {}
+local OpenTask, ReadTask, LockTask, SaveTask, CloseTask, DestroyTask, Lock, Unlock, Load, Save, StartSaveTimer, StopSaveTimer, SaveTimerEnded, StartLockTimer, StopLockTimer, LockTimerEnded, ProcessQueue, SignalConnected, Clone, Reconcile, Compress, Decompress, Encode, Decode, BindToClose
+local dataStores, bindToClose, active = {}, {}, true
 local characters = {[0] = "0","1","2","3","4","5","6","7","8","9","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","!","$","%","&","'",",",".","/",":",";","=","?","@","[","]","^","_","`","{","}","~"}
 local bytes = {} for i = (0), #characters do bytes[string.byte(characters[i])] = i end
 local base = #characters + 1
-local dataStores = {}
-local bindToClose = {}
+
 
 
 
 -- Types
 export type Constructor = {
 	new: (name: string, scope: string, key: string?) -> DataStore,
+	hidden: (name: string, scope: string, key: string?) -> DataStore,
 	find: (name: string, scope: string, key: string?) -> DataStore?,
+	Response: {Success: string, Saved: string, Locked: string, State: string, Error: string},
 }
 
 export type DataStore = {
 	Value: any,
 	Metadata: {[string]: any},
-	UserIds: {[number]: number},
+	UserIds: {any},
 	SaveInterval: number,
+	SaveDelay: number,
 	LockInterval: number,
 	LockAttempts: number,
 	SaveOnClose: boolean,
@@ -33,19 +34,24 @@ export type DataStore = {
 	UniqueId: string,
 	Key: string,
 	State: boolean?,
+	Hidden: boolean,
 	AttemptsRemaining: number,
 	CreatedTime: number,
 	UpdatedTime: number,
 	Version: string,
 	CompressedValue: string,
-	StateChanged: signalModule.Signal,
-	Saving: signalModule.Signal,
-	AttemptsChanged: signalModule.Signal,
-	Open: (self: DataStore, template: any?) -> (string?, string?),
-	Load: (self: DataStore, template: any?) -> (string?, string?),
-	Save: (self: DataStore) -> (string?, string?),
-	Close: (self: DataStore) -> (string?, string?),
-	Destroy: (self: DataStore) -> (string?, string?),
+	StateChanged: Signal.Signal,
+	Saving: Signal.Signal,
+	Saved: Signal.Signal,
+	AttemptsChanged: Signal.Signal,
+	ProcessQueue: Signal.Signal,
+	Open: (self: DataStore, template: any?) -> (string, any),
+	Read: (self: DataStore, template: any?) -> (string, any),
+	Save: (self: DataStore) -> (string, any),
+	Close: (self: DataStore) -> (string, any),
+	Destroy: (self: DataStore) -> (string, any),
+	Queue: (self: DataStore, value: any, expiration: number?, priority: number?) -> (string, any),
+	Remove: (self: DataStore, id: string) -> (string, any),
 	Clone: (self: DataStore) -> any,
 	Reconcile: (self: DataStore, template: any) -> (),
 	Usage: (self: DataStore) -> (number, number),
@@ -53,377 +59,495 @@ export type DataStore = {
 
 
 
--- Metatables
-dataStoreMetatable = {
-	__metatable = "The metatable is locked",
-	__tostring = function(proxy) return "DataStore" end,
-	__iter = function(proxy) error("Attempt to iterate over a DataStore value", 2) end,
-	__index = function(proxy, index) return if dataStoreGet[index] == private then proxy[private][index] else dataStoreGet[index] end,
-	__newindex = function(proxy, index, value) if dataStoreSet[index] == nil then error("Attempt to modify a readonly value", 2) end dataStoreSet[index](proxy, value) end,
-}
-
-
 
 -- Constructor
-constructor = {
-	new = function(name, scope, key)
-		if key == nil then key, scope = scope, "global" end
-		local id = name .. "/" .. scope .. "/" .. key
-		if dataStores[id] ~= nil then return dataStores[id].Proxy end
-		local dataStore = {
-			["Value"] = nil,
-			["Metadata"] = {},
-			["UserIds"] = {},
-			["SaveInterval"] = 30,
-			["LockInterval"] = 60,
-			["LockAttempts"] = 5,
-			["SaveOnClose"] = true,
-			["Id"] = id,
-			["UniqueId"] = httpService:GenerateGUID(false),
-			["Key"] = key,
-			["State"] = false,
-			["AttemptsRemaining"] = 0,
-			["CreatedTime"] = 0,
-			["UpdatedTime"] = 0,
-			["Version"] = "",
-			["CompressedValue"] = "",
-			["StateChanged"] = signalModule.new(),
-			["Saving"] = signalModule.new(),
-			["AttemptsChanged"] = signalModule.new(),
-			["Tasks"] = {},
-			["SaveThread"] = nil,
-			["LockThread"] = nil,
-			["LockTime"] = -math.huge,
-			["SaveTime"] = -math.huge,
-			["ActiveLockInterval"] = 0,
-			["Running"] = false,
-			["DataStore"] = dataStoreService:GetDataStore(name, scope),
-			["MemoryStore"] = memoryStoreService:GetSortedMap(id),
-			["Options"] = Instance.new("DataStoreSetOptions"),
-		}
-		dataStores[dataStore.Id] = dataStore
-		bindToClose[dataStore.UniqueId] = dataStore
-		dataStore.Proxy = setmetatable({[private] = dataStore}, dataStoreMetatable)
-		return dataStore.Proxy
-	end,
-	find = function(name, scope, key)
-		if key == nil then key, scope = scope, "global" end
-		local id = name .. "/" .. scope .. "/" .. key
-		if dataStores[id] ~= nil then return dataStores[id].Proxy end
-	end,
-}
+Constructor.new = function(name, scope, key)
+	if key == nil then key, scope = scope, "global" end
+	local id = name .. "/" .. scope .. "/" .. key
+	if dataStores[id] ~= nil then return dataStores[id] end
+	local proxy, dataStore = Proxy.new(DataStore, {
+		Metadata = {},
+		UserIds = {},
+		SaveInterval = 30,
+		SaveDelay = 0,
+		LockInterval = 60,
+		LockAttempts = 5,
+		SaveOnClose = true,
+		Id = id,
+		UniqueId = httpService:GenerateGUID(false),
+		Key = key,
+		State = false,
+		Hidden = false,
+		AttemptsRemaining = 0,
+		CreatedTime = 0,
+		UpdatedTime = 0,
+		Version = "",
+		CompressedValue = "",
+		StateChanged = Signal.new(),
+		Saving = Signal.new(),
+		Saved = Signal.new(),
+		AttemptsChanged = Signal.new(),
+		ProcessQueue = Signal.new(),
+	})
+	dataStore.TaskManager = SynchronousTaskManager.new()
+	dataStore.LockTime = -math.huge
+	dataStore.SaveTime = -math.huge
+	dataStore.ActiveLockInterval = 0
+	dataStore.ProcessingQueue = false
+	dataStore.DataStore = dataStoreService:GetDataStore(name, scope)
+	dataStore.MemoryStore = memoryStoreService:GetSortedMap(id)
+	dataStore.Queue = memoryStoreService:GetQueue(id)
+	dataStore.Options = Instance.new("DataStoreSetOptions")
+	dataStore.__public.ProcessQueue.DataStore = proxy
+	dataStore.__public.ProcessQueue.Connected = SignalConnected
+	dataStores[id] = proxy
+	if active == true then bindToClose[dataStore.__public.UniqueId] = proxy end
+	return proxy
+end
+
+Constructor.hidden = function(name, scope, key)
+	if key == nil then key, scope = scope, "global" end
+	local id = name .. "/" .. scope .. "/" .. key
+	local proxy, dataStore = Proxy.new(DataStore, {
+		Metadata = {},
+		UserIds = {},
+		SaveInterval = 30,
+		SaveDelay = 0,
+		LockInterval = 60,
+		LockAttempts = 5,
+		SaveOnClose = true,
+		Id = id,
+		UniqueId = httpService:GenerateGUID(false),
+		Key = key,
+		State = false,
+		Hidden = true,
+		AttemptsRemaining = 0,
+		CreatedTime = 0,
+		UpdatedTime = 0,
+		Version = "",
+		CompressedValue = "",
+		StateChanged = Signal.new(),
+		Saving = Signal.new(),
+		Saved = Signal.new(),
+		AttemptsChanged = Signal.new(),
+		ProcessQueue = Signal.new(),
+	})
+	dataStore.TaskManager = SynchronousTaskManager.new()
+	dataStore.LockTime = -math.huge
+	dataStore.SaveTime = -math.huge
+	dataStore.ActiveLockInterval = 0
+	dataStore.ProcessingQueue = false
+	dataStore.DataStore = dataStoreService:GetDataStore(name, scope)
+	dataStore.MemoryStore = memoryStoreService:GetSortedMap(id)
+	dataStore.Queue = memoryStoreService:GetQueue(id)
+	dataStore.Options = Instance.new("DataStoreSetOptions")
+	dataStore.__public.ProcessQueue.DataStore = proxy
+	dataStore.__public.ProcessQueue.Connected = SignalConnected
+	if active == true then bindToClose[dataStore.__public.UniqueId] = proxy end
+	return proxy
+end
+
+Constructor.find = function(name, scope, key)
+	if key == nil then key, scope = scope, "global" end
+	local id = name .. "/" .. scope .. "/" .. key
+	return dataStores[id]
+end
+
+Constructor.Response = {Success = "Success", Saved = "Saved", Locked = "Locked", State = "State", Error = "Error"}
 
 
 
---Datastore
-dataStoreGet = {
-	["Value"] = private,
-	["Metadata"] = private,
-	["UserIds"] = private,
-	["SaveInterval"] = private,
-	["LockInterval"] = private,
-	["LockAttempts"] = private,
-	["SaveOnClose"] = private,
-	["Id"] = private,
-	["UniqueId"] = private,
-	["Key"] = private,
-	["State"] = private,
-	["AttemptsRemaining"] = private,
-	["CreatedTime"] = private,
-	["UpdatedTime"] = private,
-	["Version"] = private,
-	["CompressedValue"] = private,
-	["StateChanged"] = private,
-	["Saving"] = private,
-	["AttemptsChanged"] = private,
-	["Open"] = function(proxy, template)
-		return AddTask(proxy[private], OpenTask, template)
+
+-- DataStore
+DataStore.__tostring = function(proxy)
+	return "DataStore"
+end
+
+DataStore.__shared = {
+	Open = function(proxy, template)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Open failed: Passed value is not a DataStore", 3) end
+		if dataStore.__public.State == nil then return "State", "Destroyed" end
+		local synchronousTask = dataStore.TaskManager:FindFirst(OpenTask)
+		if synchronousTask ~= nil then return synchronousTask:Wait(template) end
+		if dataStore.TaskManager:FindLast(DestroyTask) ~= nil then return "State", "Destroying" end
+		if dataStore.__public.State == true and dataStore.TaskManager:FindLast(CloseTask) == nil then
+			if dataStore.__public.Value == nil then
+				dataStore.__public.Value = Clone(template)
+			elseif type(dataStore.__public.Value) == "table" and type(template) == "table" then
+				Reconcile(dataStore.__public.Value, template)
+			end
+			return "Success"
+		end
+		return dataStore.TaskManager:InsertBack(OpenTask, proxy):Wait(template)
 	end,
-	["Load"] = function(proxy, template)
-		return AddTask(proxy[private], LoadTask, template)
+	Read = function(proxy, template)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Read failed: Passed value is not a DataStore", 3) end
+		local synchronousTask = dataStore.TaskManager:FindFirst(ReadTask)
+		if synchronousTask ~= nil then return synchronousTask:Wait(template) end
+		if dataStore.__public.State == true and dataStore.TaskManager:FindLast(CloseTask) == nil then return "State", "Open" end
+		return dataStore.TaskManager:InsertBack(ReadTask, proxy):Wait(template)
 	end,
-	["Save"] = function(proxy)
-		return AddTask(proxy[private], SaveTask)
+	Save = function(proxy)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Save failed: Passed value is not a DataStore", 3) end
+		if dataStore.__public.State == false then return "State", "Closed" end
+		if dataStore.__public.State == nil then return "State", "Destroyed" end
+		local synchronousTask = dataStore.TaskManager:FindFirst(SaveTask)
+		if synchronousTask ~= nil then return synchronousTask:Wait() end
+		if dataStore.TaskManager:FindLast(CloseTask) ~= nil then return "State", "Closing" end
+		if dataStore.TaskManager:FindLast(DestroyTask) ~= nil then return "State", "Destroying" end
+		return dataStore.TaskManager:InsertBack(SaveTask, proxy):Wait()
 	end,
-	["Close"] = function(proxy)
-		return AddTask(proxy[private], CloseTask)
+	Close = function(proxy)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Close failed: Passed value is not a DataStore", 3) end
+		if dataStore.__public.State == nil then return "Success" end
+		local synchronousTask = dataStore.TaskManager:FindFirst(CloseTask)
+		if synchronousTask ~= nil then return synchronousTask:Wait() end
+		if dataStore.__public.State == false and dataStore.TaskManager:FindLast(OpenTask) == nil then return "Success" end
+		local synchronousTask = dataStore.TaskManager:FindFirst(DestroyTask)
+		if synchronousTask ~= nil then return synchronousTask:Wait() end
+		StopLockTimer(dataStore)
+		StopSaveTimer(dataStore)
+		return dataStore.TaskManager:InsertBack(CloseTask, proxy):Wait()
 	end,
-	["Destroy"] = function(proxy)
-		local dataStore = proxy[private]
-		dataStores[dataStore.Id] = nil
-		return AddTask(dataStore, DestroyTask)
+	Destroy = function(proxy)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Destroy failed: Passed value is not a DataStore", 3) end
+		if dataStore.__public.State == nil then return "Success" end
+		dataStores[dataStore.__public.Id] = nil
+		StopLockTimer(dataStore)
+		StopSaveTimer(dataStore)
+		return (dataStore.TaskManager:FindFirst(DestroyTask) or dataStore.TaskManager:InsertBack(DestroyTask, proxy)):Wait()
 	end,
-	["Clone"] = function(proxy)
-		return Clone(proxy[private].Value)
+	Queue = function(proxy, value, expiration, priority)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Queue failed: Passed value is not a DataStore", 3) end
+		if expiration ~= nil and type(expiration) ~= "number" then error("Attempt to Queue failed: Passed value is not nil or number", 3) end
+		if priority ~= nil and type(priority) ~= "number" then error("Attempt to Queue failed: Passed value is not nil or number", 3) end
+		local success, errorMessage
+		for i = 1, 3 do
+			if i > 1 then task.wait(1) end
+			success, errorMessage = pcall(dataStore.Queue.AddAsync, dataStore.Queue, value, expiration or 604800, priority)
+			if success == true then return "Success" end
+		end
+		return "Error", errorMessage
 	end,
-	["Reconcile"] = function(proxy, template)
-		local dataStore = proxy[private]
-		if dataStore.Value == nil then
-			dataStore.Value = Clone(template)
-		elseif type(dataStore.Value) == "table" and type(template) == "table" then
-			Reconcile(dataStore.Value, template)
+	Remove = function(proxy, id)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Remove failed: Passed value is not a DataStore", 3) end
+		if type(id) ~= "string" then error("Attempt to RemoveQueue failed: Passed value is not a string", 3) end
+		local success, errorMessage
+		for i = 1, 3 do
+			if i > 1 then task.wait(1) end
+			success, errorMessage = pcall(dataStore.Queue.RemoveAsync, dataStore.Queue, id)
+			if success == true then return "Success" end
+		end
+		return "Error", errorMessage
+	end,
+	Clone = function(proxy)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Clone failed: Passed value is not a DataStore", 3) end
+		return Clone(dataStore.__public.Value)
+	end,
+	Reconcile = function(proxy, template)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Reconcile failed: Passed value is not a DataStore", 3) end
+		if dataStore.__public.Value == nil then
+			dataStore.__public.Value = Clone(template)
+		elseif type(dataStore.__public.Value) == "table" and type(template) == "table" then
+			Reconcile(dataStore.__public.Value, template)
 		end
 	end,
-	["Usage"] = function(proxy)
-		local dataStore = proxy[private]
-		if type(dataStore.Metadata.Compress) ~= "table" then
-			local characters = #httpService:JSONEncode(dataStore.Value)
+	Usage = function(proxy)
+		local dataStore = getmetatable(proxy)
+		if type(dataStore) ~= "table" or dataStore.__shared ~= DataStore.__shared then error("Attempt to Usage failed: Passed value is not a DataStore", 3) end
+		if dataStore.__public.Value == nil then return 0, 0 end
+		if type(dataStore.__public.Metadata.Compress) ~= "table" then
+			local characters = #httpService:JSONEncode(dataStore.__public.Value)
 			return characters, characters / 4194303
 		else
-			local level = dataStore.Metadata.Compress.Level or 2
-			local decimals = 10 ^ (dataStore.Metadata.Compress.Decimals or 3)
-			local safety = if dataStore.Metadata.Compress.Safety == nil then true else dataStore.Metadata.Compress.Safety
-			dataStore.CompressedValue = Compress(dataStore.Value, level, decimals, safety)
-			local characters = #httpService:JSONEncode(dataStore.CompressedValue)
+			local level = dataStore.__public.Metadata.Compress.Level or 2
+			local decimals = 10 ^ (dataStore.__public.Metadata.Compress.Decimals or 3)
+			local safety = if dataStore.__public.Metadata.Compress.Safety == nil then true else dataStore.__public.Metadata.Compress.Safety
+			dataStore.__public.CompressedValue = Compress(dataStore.__public.Value, level, decimals, safety)
+			local characters = #httpService:JSONEncode(dataStore.__public.CompressedValue)
 			return characters, characters / 4194303
 		end
 	end,
 }
 
-dataStoreSet = {
-	["Value"] = function(proxy, value)
-		proxy[private].Value = value
-	end,
-	["Metadata"] = function(proxy, value)
+DataStore.__set = {
+	Metadata = function(proxy, dataStore, value)
 		if type(value) ~= "table" then error("Attempt to set Metadata failed: Passed value is not a table", 3) end
-		proxy[private].Metadata = value
+		dataStore.__public.Metadata = value
 	end,
-	["UserIds"] = function(proxy, value)
+	UserIds = function(proxy, dataStore, value)
 		if type(value) ~= "table" then error("Attempt to set UserIds failed: Passed value is not a table", 3) end
-		proxy[private].UserIds = value
+		dataStore.__public.UserIds = value
 	end,
-	["SaveInterval"] = function(proxy, value)
+	SaveInterval = function(proxy, dataStore, value)
 		if type(value) ~= "number" then error("Attempt to set SaveInterval failed: Passed value is not a number", 3) end
-		if value < 6 and value ~= 0 then error("Attempt to set SaveInterval failed: Passed value is less then 6 and not 0", 3) end
-		local dataStore = proxy[private]
-		if value == 0 then StopSaveTimer(dataStore) elseif dataStore.SaveInterval == 0 then StartSaveTimer(dataStore) end
-		dataStore.SaveInterval = value
+		if value < 10 and value ~= 0 then error("Attempt to set SaveInterval failed: Passed value is less then 10 and not 0", 3) end
+		if value > 1000 then error("Attempt to set SaveInterval failed: Passed value is more then 1000", 3) end
+		if value == dataStore.__public.SaveInterval then return end
+		dataStore.__public.SaveInterval = value
+		if dataStore.__public.State ~= true then return end
+		if value == 0 then
+			StopSaveTimer(dataStore)
+		elseif dataStore.TaskManager:FindLast(CloseTask) == nil and dataStore.TaskManager:FindLast(DestroyTask) == nil then
+			StartSaveTimer(proxy)
+		end
 	end,
-	["LockInterval"] = function(proxy, value)
+	SaveDelay = function(proxy, dataStore, value)
+		if type(value) ~= "number" then error("Attempt to set SaveDelay failed: Passed value is not a number", 3) end
+		if value < 0 then error("Attempt to set SaveDelay failed: Passed value is less then 0", 3) end
+		if value > 10 then error("Attempt to set SaveDelay failed: Passed value is more then 10", 3) end
+		dataStore.__public.SaveDelay = value
+	end,
+	LockInterval = function(proxy, dataStore, value)
 		if type(value) ~= "number" then error("Attempt to set LockInterval failed: Passed value is not a number", 3) end
-		if value < 6 then error("Attempt to set LockInterval failed: Passed value is less then 6", 3) end
-		if value > 5000 then error("Attempt to set LockInterval failed: Passed value is more then 5000", 3) end
-		proxy[private].LockInterval = value
+		if value < 10 then error("Attempt to set LockInterval failed: Passed value is less then 10", 3) end
+		if value > 1000 then error("Attempt to set LockInterval failed: Passed value is more then 1000", 3) end
+		dataStore.__public.LockInterval = value
 	end,
-	["LockAttempts"] = function(proxy, value)
+	LockAttempts = function(proxy, dataStore, value)
 		if type(value) ~= "number" then error("Attempt to set LockAttempts failed: Passed value is not a number", 3) end
 		if value < 1 then error("Attempt to set LockAttempts failed: Passed value is less then 1", 3) end
-		if value > 500 then error("Attempt to set LockAttempts failed: Passed value is more then 500", 3) end
-		proxy[private].LockAttempts = value
+		if value > 100 then error("Attempt to set LockAttempts failed: Passed value is more then 100", 3) end
+		dataStore.__public.LockAttempts = value
 	end,
-	["SaveOnClose"] = function(proxy, value)
+	SaveOnClose = function(proxy, dataStore, value)
 		if type(value) ~= "boolean" then error("Attempt to set SaveOnClose failed: Passed value is not a boolean", 3) end
-		proxy[private].SaveOnClose = value
+		dataStore.__public.SaveOnClose = value
 	end,
+	Id = false,
+	UniqueId = false,
+	Key = false,
+	State = false,
+	Hidden = false,
+	AttemptsRemaining = false,
+	CreatedTime = false,
+	UpdatedTime = false,
+	Version = false,
+	CompressedValue = false,
+	StateChanged = false,
+	Saving = false,
+	Saved = false,
+	AttemptsChanged = false,
+	ProcessQueue = false,
 }
+
 
 
 
 -- Functions
-OpenTask = function(dataStore, parameters)
-	if dataStore.State == true then return end
-	if dataStore.State == nil then return "State", "Destroyed" end
-	local errorType, errorData = Load(dataStore, 3)
-	if errorType ~= nil then return errorType, errorData end
-	local errorType, errorData = Lock(dataStore, 3)
-	if errorType ~= nil then return errorType, errorData end
-	dataStore.State = true
-	StartLockTimer(dataStore, dataStore.ActiveLockInterval)
-	StartSaveTimer(dataStore)
-	for i, parameter in parameters do
-		if dataStore.Value == nil then
-			dataStore.Value = Clone(parameter[1])
-		elseif type(dataStore.Value) == "table" and type(parameter[1]) == "table" then
-			Reconcile(dataStore.Value, parameter[1])
-		end
+OpenTask = function(runningTask, proxy)
+	local dataStore = getmetatable(proxy)
+	local response, responseData = Lock(dataStore, 3)
+	if response ~= "Success" then for thread in runningTask:Iterate() do task.defer(thread, response, responseData) end return end
+	local response, responseData = Load(dataStore, 3)
+	if response ~= "Success" then Unlock(dataStore, 3) for thread in runningTask:Iterate() do task.defer(thread, response, responseData) end return end
+	dataStore.__public.State = true
+	if dataStore.TaskManager:FindLast(CloseTask) == nil and dataStore.TaskManager:FindLast(DestroyTask) == nil then
+		StartSaveTimer(proxy)
+		StartLockTimer(proxy)
 	end
-	dataStore.StateChanged:Fire(true, dataStore.Proxy)
+	for thread, template in runningTask:Iterate() do
+		if dataStore.__public.Value == nil then
+			dataStore.__public.Value = Clone(template)
+		elseif type(dataStore.__public.Value) == "table" and type(template) == "table" then
+			Reconcile(dataStore.__public.Value, template)
+		end
+		task.defer(thread, response)
+	end
+	if dataStore.ProcessingQueue == false and dataStore.__public.ProcessQueue.Connections > 0 then task.defer(ProcessQueue, proxy) end
+	dataStore.__public.StateChanged:Fire(true, proxy)
 end
 
-LoadTask = function(dataStore, parameters)
-	if dataStore.State == nil then return "State", "Destroyed" end
-	if dataStore.State == true then return "State", "Open" end
-	local errorType, errorData = Load(dataStore, 3)
-	if errorType ~= nil then return errorType, errorData end
-	for i, parameter in parameters do
-		if dataStore.Value == nil then
-			dataStore.Value = Clone(parameter[1])
-		elseif type(dataStore.Value) == "table" and type(parameter[1]) == "table" then
-			Reconcile(dataStore.Value, parameter[1])
+ReadTask = function(runningTask, proxy)
+	local dataStore = getmetatable(proxy)
+	if dataStore.__public.State == true then for thread in runningTask:Iterate() do task.defer(thread, "State", "Open") end return end
+	local response, responseData = Load(dataStore, 3)
+	if response ~= "Success" then for thread in runningTask:Iterate() do task.defer(thread, response, responseData) end return end
+	for thread, template in runningTask:Iterate() do
+		if dataStore.__public.Value == nil then
+			dataStore.__public.Value = Clone(template)
+		elseif type(dataStore.__public.Value) == "table" and type(template) == "table" then
+			Reconcile(dataStore.__public.Value, template)
 		end
+		task.defer(thread, response)
 	end
 end
 
-LockTask = function(dataStore, parameters)
-	if dataStore.State == nil then return "State", "Destroyed" end
-	if dataStore.State == false then return "State", "Closed" end
-	local attemptsRemaining = dataStore.AttemptsRemaining
-	local errorType, errorData = Lock(dataStore, 3)
-	if errorType ~= nil then dataStore.AttemptsRemaining -= 1 end
-	if dataStore.AttemptsRemaining ~= attemptsRemaining then dataStore.AttemptsChanged:Fire(dataStore.AttemptsRemaining, dataStore.Proxy) end
-	if dataStore.AttemptsRemaining > 0 then
-		local lockTime = dataStore.LockTime - dataStore.AttemptsRemaining * dataStore.ActiveLockInterval
-		StartLockTimer(dataStore, lockTime - time() + dataStore.ActiveLockInterval)
+LockTask = function(runningTask, proxy)
+	local dataStore = getmetatable(proxy)
+	local attemptsRemaining = dataStore.__public.AttemptsRemaining
+	local response, responseData = Lock(dataStore, 3)
+	if response ~= "Success" then dataStore.__public.AttemptsRemaining -= 1 end
+	if dataStore.__public.AttemptsRemaining ~= attemptsRemaining then dataStore.__public.AttemptsChanged:Fire(dataStore.__public.AttemptsRemaining, proxy) end
+	if dataStore.__public.AttemptsRemaining > 0 then
+		if dataStore.TaskManager:FindLast(CloseTask) == nil and dataStore.TaskManager:FindLast(DestroyTask) == nil then StartLockTimer(proxy) end
 	else
-		dataStore.State = false
+		dataStore.__public.State = false
 		StopLockTimer(dataStore)
 		StopSaveTimer(dataStore)
-		if dataStore.SaveOnClose == true then Save(dataStore, 3) end
+		if dataStore.__public.SaveOnClose == true then Save(proxy, 3) end
 		Unlock(dataStore, 3)
-		dataStore.StateChanged:Fire(false, dataStore.Proxy)
+		dataStore.__public.StateChanged:Fire(false, proxy)
 	end
-	return errorType, errorData
+	for thread in runningTask:Iterate() do task.defer(thread, response, responseData) end
+end
+	
+SaveTask = function(runningTask, proxy)
+	local dataStore = getmetatable(proxy)
+	if dataStore.__public.State == false then for thread in runningTask:Iterate() do task.defer(thread, "State", "Closed") end return end
+	StopSaveTimer(dataStore)
+	runningTask:End()
+	local response, responseData = Save(proxy, 3)
+	if dataStore.TaskManager:FindLast(CloseTask) == nil and dataStore.TaskManager:FindLast(DestroyTask) == nil then StartSaveTimer(proxy) end
+	for thread in runningTask:Iterate() do task.defer(thread, response, responseData) end
 end
 
-SaveTask = function(dataStore, parameters)
-	if dataStore.State == nil then return "State", "Destroyed" end
-	if dataStore.State == false then return "State", "Closed" end
-	StopSaveTimer(dataStore)
-	local errorType, errorData = Save(dataStore, 3)
-	StartSaveTimer(dataStore)
-	return errorType, errorData
-end
-
-CloseTask = function(dataStore, parameters)
-	if dataStore.State == false then return end
-	if dataStore.State == nil then return "State", "Destroyed" end
-	dataStore.State = false
-	StopLockTimer(dataStore)
-	StopSaveTimer(dataStore)
-	if dataStore.SaveOnClose == true then Save(dataStore, 3) end
+CloseTask = function(runningTask, proxy)
+	local dataStore = getmetatable(proxy)
+	if dataStore.__public.State == false then for thread in runningTask:Iterate() do task.defer(thread, "Success") end return end
+	dataStore.__public.State = false
+	local response, responseData = nil, nil
+	if dataStore.__public.SaveOnClose == true then response, responseData = Save(proxy, 3) end
 	Unlock(dataStore, 3)
-	dataStore.StateChanged:Fire(false, dataStore.Proxy)
+	dataStore.__public.StateChanged:Fire(false, proxy)
+	if response == "Saved" then
+		for thread in runningTask:Iterate() do task.defer(thread, response, responseData) end
+	else
+		for thread in runningTask:Iterate() do task.defer(thread, "Success") end
+	end
 end
 
-DestroyTask = function(dataStore, parameters)
-	if dataStore.State == nil then return end
-	if dataStore.State == true then
-		dataStore.State = nil
-		StopLockTimer(dataStore)
-		StopSaveTimer(dataStore)
-		if dataStore.SaveOnClose == true then Save(dataStore, 3) end
+DestroyTask = function(runningTask, proxy)
+	local dataStore = getmetatable(proxy)
+	local response, responseData = nil, nil
+	if dataStore.__public.State == false then
+		dataStore.__public.State = nil
+	else
+		dataStore.__public.State = nil
+		if dataStore.__public.SaveOnClose == true then response, responseData = Save(proxy, 3) end
 		Unlock(dataStore, 3)
 	end
-	dataStore.State = nil
-	dataStore.StateChanged:Fire(nil, dataStore.Proxy)
-	dataStore.StateChanged:DisconnectAll()
-	dataStore.Saving:DisconnectAll()
-	bindToClose[dataStore.UniqueId] = nil
-end
-
-AddTask = function(dataStore, taskFunction, ...)
-	if dataStore.Running == false then dataStore.Running = true task.defer(RunTasks, dataStore) end
-	for i, taskData in dataStore.Tasks do
-		if taskData.Function ~= taskFunction then continue end
-		table.insert(taskData.Parameters, {...})
-		table.insert(taskData.Threads, coroutine.running())
-		return coroutine.yield()
+	dataStore.__public.StateChanged:Fire(nil, proxy)
+	dataStore.__public.StateChanged:DisconnectAll()
+	dataStore.__public.Saving:DisconnectAll()
+	dataStore.__public.Saved:DisconnectAll()
+	dataStore.__public.AttemptsChanged:DisconnectAll()
+	dataStore.__public.ProcessQueue:DisconnectAll()
+	bindToClose[dataStore.__public.UniqueId] = nil
+	if response == "Saved" then
+		for thread in runningTask:Iterate() do task.defer(thread, response, responseData) end
+	else
+		for thread in runningTask:Iterate() do task.defer(thread, "Success") end
 	end
-	table.insert(dataStore.Tasks, {["Function"] = taskFunction, ["Parameters"] = {{...}}, ["Threads"] = {coroutine.running()}})
-	return coroutine.yield()
-end
-
-RunTasks = function(dataStore)
-	while #dataStore.Tasks > 0 do
-		local taskData = dataStore.Tasks[1]
-		local errorType, errorData = taskData.Function(dataStore, taskData.Parameters)
-		table.remove(dataStore.Tasks, 1)
-		for i, thread in taskData.Threads do task.spawn(thread, errorType, errorData) end
-	end
-	dataStore.Running = false
 end
 
 Lock = function(dataStore, attempts)
-	local success, value, id, lockTime, lockInterval, lockAttempts = nil, nil, nil, nil, dataStore.LockInterval, dataStore.LockAttempts
+	local success, value, id, lockTime, lockInterval, lockAttempts = nil, nil, nil, nil, dataStore.__public.LockInterval, dataStore.__public.LockAttempts
 	for i = 1, attempts do
 		if i > 1 then task.wait(1) end
-		lockTime = time()
-		success, value = pcall(dataStore.MemoryStore.UpdateAsync, dataStore.MemoryStore, "Id", function(value) id = value return if id == nil or id == dataStore.UniqueId then dataStore.UniqueId else nil end, lockInterval * lockAttempts + 30)
+		lockTime = os.clock()
+		success, value = pcall(dataStore.MemoryStore.UpdateAsync, dataStore.MemoryStore, "Id", function(value) id = value return if id == nil or id == dataStore.__public.UniqueId then dataStore.__public.UniqueId else nil end, lockInterval * lockAttempts + 30)
 		if success == true then break end
 	end
-	if success == false then warn("MemoryStore(" .. dataStore.Id .. "):", value) return "MemoryStore", value end
+	if success == false then return "Error", value end
 	if value == nil then return "Locked", id end
 	dataStore.LockTime = lockTime + lockInterval * lockAttempts
 	dataStore.ActiveLockInterval = lockInterval
-	dataStore.AttemptsRemaining = lockAttempts
+	dataStore.__public.AttemptsRemaining = lockAttempts
+	return "Success"
 end
 
 Unlock = function(dataStore, attempts)
 	local success, value, id = nil, nil, nil
 	for i = 1, attempts do
 		if i > 1 then task.wait(1) end
-		success, value = pcall(dataStore.MemoryStore.UpdateAsync, dataStore.MemoryStore, "Id", function(value) id = value return if id == dataStore.UniqueId then dataStore.UniqueId else nil end, 0)
+		success, value = pcall(dataStore.MemoryStore.UpdateAsync, dataStore.MemoryStore, "Id", function(value) id = value return if id == dataStore.__public.UniqueId then dataStore.__public.UniqueId else nil end, 0)
 		if success == true then break end
 	end
-	if success == false then warn("MemoryStore(" .. dataStore.Id .. "):", value) return "MemoryStore", value end
+	if success == false then return "Error", value end
 	if value == nil and id ~= nil then return "Locked", id end
+	return "Success"
 end
 
 Load = function(dataStore, attempts)
 	local success, value, info = nil, nil, nil
 	for i = 1, attempts do
 		if i > 1 then task.wait(1) end
-		success, value, info = pcall(dataStore.DataStore.GetAsync, dataStore.DataStore, dataStore.Key)
+		success, value, info = pcall(dataStore.DataStore.GetAsync, dataStore.DataStore, dataStore.__public.Key)
 		if success == true then break end
 	end
-	if success == false then warn("DataStore(" .. dataStore.Id .. "):", value) return "DataStore", value end
+	if success == false then return "Error", value end
 	if info == nil then
-		dataStore.Metadata, dataStore.UserIds, dataStore.CreatedTime, dataStore.UpdatedTime, dataStore.Version = {}, {}, 0, 0, ""
+		dataStore.__public.Metadata, dataStore.__public.UserIds, dataStore.__public.CreatedTime, dataStore.__public.UpdatedTime, dataStore.__public.Version = {}, {}, 0, 0, ""
 	else
-		dataStore.Metadata, dataStore.UserIds, dataStore.CreatedTime, dataStore.UpdatedTime, dataStore.Version = info:GetMetadata(), info:GetUserIds(), info.CreatedTime, info.UpdatedTime, info.Version
+		dataStore.__public.Metadata, dataStore.__public.UserIds, dataStore.__public.CreatedTime, dataStore.__public.UpdatedTime, dataStore.__public.Version = info:GetMetadata(), info:GetUserIds(), info.CreatedTime, info.UpdatedTime, info.Version
 	end
-	if type(dataStore.Metadata.Compress) ~= "table" then
-		dataStore.Value = value
+	if type(dataStore.__public.Metadata.Compress) ~= "table" then
+		dataStore.__public.Value = value
 	else
-		dataStore.CompressedValue = value
-		local decimals = 10 ^ (dataStore.Metadata.Compress.Decimals or 3)
-		dataStore.Value = Decompress(dataStore.CompressedValue, decimals)
+		dataStore.__public.CompressedValue = value
+		local decimals = 10 ^ (dataStore.__public.Metadata.Compress.Decimals or 3)
+		dataStore.__public.Value = Decompress(dataStore.__public.CompressedValue, decimals)
 	end
+	return "Success"
 end
 
-Save = function(dataStore, attempts)
-	local deltaTime = time() - dataStore.SaveTime
-	if deltaTime < 6 then task.wait(6 - deltaTime) end
-	dataStore.Saving:Fire(dataStore.Value, dataStore.Proxy)
+Save = function(proxy, attempts)
+	local dataStore = getmetatable(proxy)
+	local deltaTime = os.clock() - dataStore.SaveTime
+	if deltaTime < dataStore.__public.SaveDelay then task.wait(dataStore.__public.SaveDelay - deltaTime) end
+	dataStore.__public.Saving:Fire(dataStore.__public.Value, proxy)
 	local success, value, info = nil, nil, nil
-	if dataStore.Value == nil then
+	if dataStore.__public.Value == nil then
 		for i = 1, attempts do
 			if i > 1 then task.wait(1) end
-			success, value, info = pcall(dataStore.DataStore.RemoveAsync, dataStore.DataStore, dataStore.Key)
+			success, value, info = pcall(dataStore.DataStore.RemoveAsync, dataStore.DataStore, dataStore.__public.Key)
 			if success == true then break end
 		end
-		if success == false then warn("DataStore(" .. dataStore.Id .. "):", value) return "DataStore", value end
-		dataStore.Metadata, dataStore.UserIds, dataStore.CreatedTime, dataStore.UpdatedTime, dataStore.Version = {}, {}, 0, 0, ""
-	elseif type(dataStore.Metadata.Compress) ~= "table" then
-		dataStore.Options:SetMetadata(dataStore.Metadata)
+		if success == false then dataStore.__public.Saved:Fire("Error", value, proxy) return "Error", value end
+		dataStore.__public.Metadata, dataStore.__public.UserIds, dataStore.__public.CreatedTime, dataStore.__public.UpdatedTime, dataStore.__public.Version = {}, {}, 0, 0, ""
+	elseif type(dataStore.__public.Metadata.Compress) ~= "table" then
+		dataStore.Options:SetMetadata(dataStore.__public.Metadata)
 		for i = 1, attempts do
 			if i > 1 then task.wait(1) end
-			success, value = pcall(dataStore.DataStore.SetAsync, dataStore.DataStore, dataStore.Key, dataStore.Value, dataStore.UserIds, dataStore.Options)
+			success, value = pcall(dataStore.DataStore.SetAsync, dataStore.DataStore, dataStore.__public.Key, dataStore.__public.Value, dataStore.__public.UserIds, dataStore.Options)
 			if success == true then break end
 		end	
-		if success == false then warn("DataStore(" .. dataStore.Id .. "):", value) return "DataStore", value end
-		dataStore.Version = value
+		if success == false then dataStore.__public.Saved:Fire("Error", value, proxy) return "Error", value end
+		dataStore.__public.Version = value
 	else
-		local level = dataStore.Metadata.Compress.Level or 2
-		local decimals = 10 ^ (dataStore.Metadata.Compress.Decimals or 3)
-		local safety = if dataStore.Metadata.Compress.Safety == nil then true else dataStore.Metadata.Compress.Safety
-		dataStore.CompressedValue = Compress(dataStore.Value, level, decimals, safety)
-		dataStore.Options:SetMetadata(dataStore.Metadata)
+		local level = dataStore.__public.Metadata.Compress.Level or 2
+		local decimals = 10 ^ (dataStore.__public.Metadata.Compress.Decimals or 3)
+		local safety = if dataStore.__public.Metadata.Compress.Safety == nil then true else dataStore.__public.Metadata.Compress.Safety
+		dataStore.__public.CompressedValue = Compress(dataStore.__public.Value, level, decimals, safety)
+		dataStore.Options:SetMetadata(dataStore.__public.Metadata)
 		for i = 1, attempts do
 			if i > 1 then task.wait(1) end
-			success, value = pcall(dataStore.DataStore.SetAsync, dataStore.DataStore, dataStore.Key, dataStore.CompressedValue, dataStore.UserIds, dataStore.Options)
+			success, value = pcall(dataStore.DataStore.SetAsync, dataStore.DataStore, dataStore.__public.Key, dataStore.__public.CompressedValue, dataStore.__public.UserIds, dataStore.Options)
 			if success == true then break end
 		end
-		if success == false then warn("DataStore(" .. dataStore.Id .. "):", value) return "DataStore", value end
+		if success == false then dataStore.__public.Saved:Fire("Error", value, proxy) return "Error", value end
 		dataStore.Version = value
 	end
-	dataStore.SaveTime = time()
+	dataStore.SaveTime = os.clock()
+	dataStore.__public.Saved:Fire("Saved", dataStore.__public.Value, proxy)
+	return "Saved", dataStore.__public.Value
 end
 
-StartSaveTimer = function(dataStore)
+StartSaveTimer = function(proxy)
+	local dataStore = getmetatable(proxy)
 	if dataStore.SaveThread ~= nil then task.cancel(dataStore.SaveThread) end
-	if dataStore.SaveInterval == 0 then return end
-	dataStore.SaveThread = task.delay(dataStore.SaveInterval, SaveTimerEnded, dataStore)
+	if dataStore.__public.SaveInterval == 0 then return end
+	dataStore.SaveThread = task.delay(dataStore.__public.SaveInterval, SaveTimerEnded, proxy)
 end
 
 StopSaveTimer = function(dataStore)
@@ -432,14 +556,18 @@ StopSaveTimer = function(dataStore)
 	dataStore.SaveThread = nil
 end
 
-SaveTimerEnded = function(dataStore)
+SaveTimerEnded = function(proxy)
+	local dataStore = getmetatable(proxy)
 	dataStore.SaveThread = nil
-	AddTask(dataStore, SaveTask)
+	if dataStore.TaskManager:FindLast(SaveTask) ~= nil then return end
+	dataStore.TaskManager:InsertBack(SaveTask, proxy)
 end
 
-StartLockTimer = function(dataStore, duration)
+StartLockTimer = function(proxy)
+	local dataStore = getmetatable(proxy)
 	if dataStore.LockThread ~= nil then task.cancel(dataStore.LockThread) end
-	dataStore.LockThread = task.delay(duration, LockTimerEnded, dataStore)
+	local startTime = dataStore.LockTime - dataStore.__public.AttemptsRemaining * dataStore.ActiveLockInterval
+	dataStore.LockThread = task.delay(startTime - os.clock() + dataStore.ActiveLockInterval, LockTimerEnded, proxy)
 end
 
 StopLockTimer = function(dataStore)
@@ -448,9 +576,31 @@ StopLockTimer = function(dataStore)
 	dataStore.LockThread = nil
 end
 
-LockTimerEnded = function(dataStore)
+LockTimerEnded = function(proxy)
+	local dataStore = getmetatable(proxy)
 	dataStore.LockThread = nil
-	AddTask(dataStore, LockTask)
+	if dataStore.TaskManager:FindFirst(LockTask) ~= nil then return end
+	dataStore.TaskManager:InsertBack(LockTask, proxy)
+end
+
+ProcessQueue = function(proxy)
+	local dataStore = getmetatable(proxy)
+	if dataStore.__public.State ~= true then return end
+	if dataStore.__public.ProcessQueue.Connections == 0 then return end
+	if dataStore.ProcessingQueue == true then return end
+	dataStore.ProcessingQueue = true
+	while true do
+		local success, values, id = pcall(dataStore.Queue.ReadAsync, dataStore.Queue, 100, false, 30)
+		if dataStore.__public.State ~= true then break end
+		if dataStore.__public.ProcessQueue.Connections == 0 then break end
+		if success == true and id ~= nil then dataStore.__public.ProcessQueue:Fire(id, values, proxy) end
+	end
+	dataStore.ProcessingQueue = false
+end
+
+SignalConnected = function(connected, signal)
+	if connected == false then return end
+	ProcessQueue(signal.DataStore)
 end
 
 Clone = function(original)
@@ -559,14 +709,26 @@ Decode = function(value)
 	return number
 end
 
+BindToClose = function()
+	active = false
+	for uniqueId, proxy in bindToClose do
+		local dataStore = getmetatable(proxy)
+		if dataStore.__public.State == nil then continue end
+		dataStores[dataStore.__public.Id] = nil
+		StopLockTimer(dataStore)
+		StopSaveTimer(dataStore)
+		if dataStore.TaskManager:FindFirst(DestroyTask) == nil then dataStore.TaskManager:InsertBack(DestroyTask, proxy) end
+	end
+	while next(bindToClose) ~= nil do task.wait() end
+end
+
+
 
 
 -- Events
-game:BindToClose(function()
-	for uniqueId, dataStore in bindToClose do task.spawn(AddTask, dataStore, DestroyTask) end
-	while next(bindToClose) ~= nil do task.wait() end
-end)
+game:BindToClose(BindToClose)
 
 
 
-return table.freeze(constructor) :: Constructor
+
+return table.freeze(Constructor) :: Constructor
