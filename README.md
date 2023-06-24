@@ -1,5 +1,3 @@
-# 🎊🎊 Out of Beta 🎊🎊
-
 # SuphisDataStoreModule 
 
 Before I start, this is not mine but Suphi#3388 module, I got permission to put this up in github. Here is the discord: https://discord.gg/B3zmjPVBce
@@ -12,7 +10,6 @@ Before I start, this is not mine but Suphi#3388 module, I got permission to put 
 * Bind To Close              Automatically saves, closes and destroys all sessions when server starts to close
 * Reconcile                  Fills in missing values from the template into the value property
 * Compression                Compress data to reduce character count
-* Safe Saveing               Impossible for save requests to be added to queue (you can ignore the warning)
 * Multiple script support    Safe to interact with the same datastore object from multiple scripts
 * Task batching              Tasks will be batched togever when possible
 * Direct value access        Access the datastore value directly, module will never tamper with your data and will never leave any data in your datastore or memorystore
@@ -37,7 +34,7 @@ https://create.roblox.com/marketplace/asset/11671168253/
 ```lua
 local dataStoreModule = require(11671168253)
 ```
-Current version: `1.0`
+Current version: `1.2`
 
 # Contructors
 
@@ -175,6 +172,11 @@ Fires after state property has changed
 Saving(value: Variant, object: DataStore)  Signal
 ```
 Fires just before the value is about to save
+
+```lua
+Saved(response: string, responseData: any, dataStore: DataStore)  Signal
+```
+Fires after a save attempt
 
 ```lua
 AttemptsChanged(AttemptsRemaining: number, object: DataStore)  Signal
@@ -582,17 +584,11 @@ local response, responseData = dataStore:Remove()
 -- Error, ErrorMessage
 ```
 
-# Update 1.0
-* bug fixes
-* added hidden objects
-* added Response enum
-* added SaveDelay
-* added Hidden property
-* added Queue
-* added Remove
-* renamed Load to Read
-* functions now respond differently
-* Close and Destroy now tell you if the datastore saved
+# Update 1.1 + 1.2
+* bug fix
+* bug fix -- fixed small edge case when calling ds:Close() would return nil instead of "Success"
+* Saved response will now return dataStore.Value as responseData instead of nil
+* Added Saved event
 * improved proxy
 * improved task manager
 * you can now save custom values inside the object
