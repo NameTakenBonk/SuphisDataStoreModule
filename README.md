@@ -54,6 +54,11 @@ hidden(name: string, scope: string, key: string)
 Returns a new session that cannot be returned by new or find
 
 ```lua
+hidden(name: string, key: string)
+````
+Returns a new session that cannot be returned by new or find
+
+```lua
 find(name: string, scope: string, key: string)
 ```
 Returns previously created session else nil
@@ -91,9 +96,9 @@ SaveInterval number  30
 Interval in seconds the datastore will automatically save (set to 0 to disable automatic saving)
 
 ```lua
-Response Success Saved Locked State Error
+SaveDelay  number  0
 ```
-List of responses that acts like a enum
+Delay between saves
 
 ```lua
 LockInterval  number  60
