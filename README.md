@@ -1,6 +1,15 @@
+![💻Suphi's_Data_Store_Module](https://github.com/NameTakenBonk/SuphisDataStoreModule/assets/83465599/997eb561-56a2-4b68-ae6e-0ce0a646c7cd)
+
 # SuphisDataStoreModule 
 
-Before I start, this is not mine but Suphi#3388 module, I got permission to put this up in github. Here is the discord: https://discord.gg/B3zmjPVBce
+![carbon (2)](https://github.com/NameTakenBonk/SuphisDataStoreModule/assets/83465599/d8e6a7a2-4134-4134-bcff-7153f840de7e)
+
+
+Before I start, this is not mine but 5uphi module, I got permission to put this up in github. Here is the discord: https://discord.gg/B3zmjPVBce
+
+![GitHub all releases](https://img.shields.io/github/downloads/NameTakenBonk/SuphisDataStoreModule/total?color=%231fb594) ![GitHub Repo stars](https://img.shields.io/github/stars/NameTakenBonk/SuphisDataStoreModule?color=%23fff200)
+
+
 
 # Features 
 
@@ -273,6 +282,7 @@ dataStore.Value = "Hello world!"
 -- Save, close and destroy the session
 dataStore:Destroy()
 ```
+
 
 # Load Example
 
