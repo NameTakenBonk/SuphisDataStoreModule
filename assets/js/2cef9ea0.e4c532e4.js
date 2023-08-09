@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[423],{11233:e=>{e.exports=JSON.parse('{"functions":[],"properties":[],"types":[],"name":"Proxy","desc":"Proxy table \\r","source":{"line":18,"path":"src/Proxy.lua"}}')}}]);

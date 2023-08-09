@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[86],{49164:s=>{s.exports=JSON.parse('{"functions":[],"properties":[],"types":[],"name":"Signal","desc":"Handles all the tasks synchronously\\r","source":{"line":39,"path":"src/Signal.lua"}}')}}]);

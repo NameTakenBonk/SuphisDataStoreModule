@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[828],{94108:s=>{s.exports=JSON.parse('{"functions":[],"properties":[],"types":[],"name":"TaskManager","desc":"Handles all the tasks synchronously\\r","source":{"line":46,"path":"src/SynchronousTaskManager.lua"}}')}}]);
