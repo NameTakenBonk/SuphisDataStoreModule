@@ -11,8 +11,6 @@ local bytes = {} for i = (0), #characters do bytes[string.byte(characters[i])] =
 local base = #characters + 1
 
 
-
-
 -- Types
 export type Constructor = {
 	new: (name: string, scope: string, key: string?) -> DataStore,
@@ -20,6 +18,95 @@ export type Constructor = {
 	find: (name: string, scope: string, key: string?) -> DataStore?,
 	Response: {Success: string, Saved: string, Locked: string, State: string, Error: string},
 }
+
+--- @class DataStore
+--- A sample class.
+
+--- @prop Value any 
+--- @within DataStore
+--- Value of datastore
+
+--- @prop Metedata {[string]: any} 
+--- @within DataStore
+--- Metadata associated with the key
+
+--- @prop UserIds {any} 
+--- @within DataStore
+--- An array of UserIds associated with the key
+
+--- @prop SaveInterval number | 30
+--- @within DataStore
+--- Interval in seconds the datastore will automatically save (set to 0 to disable automatic saving)
+
+--- @prop SaveDelay number | 0
+--- @within DataStore
+--- Delay between saves
+
+--- @prop LockInterval  number | 60
+--- @within DataStore
+--- Interval in seconds the memorystore will update the session lock
+
+--- @prop LockAttempts  number | 5
+--- @within DataStore
+--- How many times the memorystore needs to fail before the session closes
+
+--- @prop SaveOnClose  boolean | true
+--- @within DataStore
+--- Automatically save the data when the session is closed or destroyed
+
+--- @prop Id  string | "Name/Scope/Key"
+--- @readonly
+--- @within DataStore
+--- Identifying string
+
+--- @prop UniqueId  string | "8-4-4-4-12"
+--- @readonly
+--- @within DataStore
+--- Unique identifying string
+
+--- @prop Key  string | "Key" 
+--- @readonly
+--- @within DataStore
+--- Key used for the datastore
+
+--- @prop State  boolean? | false
+--- @readonly
+--- @within DataStore
+--- Current state of the session `nil = Destroyed` `false = Closed` `true = Open`
+
+--- @prop Hidden  boolean | false/true 
+--- @readonly
+--- @within DataStore
+--- Set to true if this session was created by the hidden constructor
+
+--- @prop AttemptsRemaining  number | 0 
+--- @readonly
+--- @within DataStore
+--- How many memorystore attempts remaining before the session closes
+
+--- @prop CreatedTime  number | 0 
+--- @readonly
+--- @within DataStore
+--- Number of milliseconds from epoch to when the datastore was created
+
+--- @prop CreatedTime  number | 0  
+--- @readonly
+--- @within DataStore
+--- Number of milliseconds from epoch to when the datastore was updated
+
+--- @prop Version  string | ""  
+--- @readonly
+--- @within DataStore
+--- Unique identifying string of the current datastore save
+
+--- @prop CompressedValue  string | ""  
+--- @readonly
+--- @within DataStore
+--- Compressed string that is updated before every save if compression is enabled by setting ```dataStore.Metadata.Compress = {["Level"] = 2, ["Decimals"] = 3, ["Safety"] = true}```
+--- * Level = 1 (allows mixed tables), 
+--- * Level = 2 (does not allow mixed tables but compresses arrays better), 
+--- * Decimals = amount of decimal places saved, 
+--- * Safety = replace delete character from strings
 
 export type DataStore = {
 	Value: any,
@@ -56,9 +143,6 @@ export type DataStore = {
 	Reconcile: (self: DataStore, template: any) -> (),
 	Usage: (self: DataStore) -> (number, number),
 }
-
-
-
 
 -- Constructor
 Constructor.new = function(name, scope, key)
@@ -162,6 +246,78 @@ Constructor.Response = {Success = "Success", Saved = "Saved", Locked = "Locked",
 DataStore.__tostring = function(proxy)
 	return "DataStore"
 end
+
+	
+--- @method Open
+--- @within DataStore
+--- @param proxy table
+--- @param template table
+--- @return response : Enum | "Success" | "Error"
+--- @error "Attempt to Open failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+
+--- @method Read
+--- @within DataStore
+--- @param proxy table
+--- @param template table
+--- @return TaskManager
+--- @error "Attempt to Read failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+
+--- @method Save
+--- @within DataStore
+--- @param proxy table
+--- @return TaskManager
+--- @error "Attempt to Save failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+
+--- @method Close
+--- @within DataStore
+--- @param proxy table
+--- @return TaskManager
+--- @error "Attempt to Close failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+
+--- @method Destroy
+--- @within DataStore
+--- @param proxy table
+--- @return TaskManager
+--- @error "Attempt to Destroy failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+
+--- @method Queue
+--- @within DataStore
+--- @param proxy table
+--- @param value any
+--- @param expiration number
+--- @param priority number
+--- @return TaskManager
+--- @error "Attempt to Queue failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+--- @error "Attempt to Destroy failed: Passed value is not nil or number" -- This happens because you passed expiration as not a number
+--- @error "Attempt to Destroy failed: Passed value is not nil or number" -- This happens because you passed priorty as not a number
+
+--- @method Remove
+--- @within DataStore
+--- @param proxy table
+--- @param id string
+--- @return response : Enum
+--- @error "Attempt to Remove failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+--- @error "Attempt to RemoveQueue failed: Passed value is not a string" -- This happens because you passed id as not a number
+--- @error "Roblox memorystore error" -- This is happens if roblox returns a memorystore error.
+--- Removes values from the MemoryStoreQueue
+
+--- @method Clones
+--- @within DataStore
+--- @param proxy table
+--- @return TaskManager
+--- @error "Attempt to Clone failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+
+--- @method Reconcile
+--- @within DataStore
+--- @param proxy table
+--- @param template table
+--- @error "Attempt to Reconcile failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
+
+--- @method Usage
+--- @within DataStore
+--- @param proxy table
+--- @return characters : number
+--- @error "Attempt to Usage failed: Passed value is not a DataStore" -- This happens because you passed a value that is not a Datastore
 
 DataStore.__shared = {
 	Open = function(proxy, template)

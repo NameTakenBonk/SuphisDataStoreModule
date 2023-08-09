@@ -13,7 +13,8 @@ export type Constructor = {
 }
 
 
-
+--- @class Proxy
+--- Proxy table 
 
 -- Constructor
 Constructor.new = function(data, public)

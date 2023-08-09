@@ -34,6 +34,8 @@ export type Connection = {
 
 
 
+--- @class Signal
+--- Handles all the tasks synchronously
 
 -- Constructor
 Constructor.new = function()

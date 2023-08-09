@@ -41,6 +41,8 @@ export type RunningTask = {
 
 
 
+--- @class TaskManager
+--- Handles all the tasks synchronously
 
 -- Constructor
 Constructor.new = function()
