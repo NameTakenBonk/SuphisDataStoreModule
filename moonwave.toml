@@ -1,0 +1,13 @@
+[home]
+enabled = true
+includeReadme = true # Optional
+
+[[home.features]]
+title = "Feature 1"
+description = "This is a feature"
+image = "https://www.porschedublin.ie/binary/getasync/77abafcb-e6ef-4bf6-90b1-0f4bae612384/image.jpg?s=6"
+
+[[home.features]]
+title = "Feature 2"
+description = "This is a second feature"
+image = ""

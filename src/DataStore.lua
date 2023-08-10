@@ -25,6 +25,9 @@ export type Constructor = {
 --- @prop Value any 
 --- @within DataStore
 --- Value of datastore
+--- ```lua
+--- print(DataStore.Value.Test)
+--- ```
 
 --- @prop Metedata {[string]: any} 
 --- @within DataStore
