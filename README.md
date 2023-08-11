@@ -37,6 +37,8 @@ So the way **Suphi's DataStore Module** works is that it uses the `MemoryStore` 
 
 Go to releases and download the version(latest stable version prefered), or copy the code(Both signal and datastoremodule, make signal the child of the main module.) in the repo. Alternatively without downloading you can do:
 
+# Docs/API
+
 Do you want check the docs or the api you can do so here: https://nametakenbonk.github.io/SuphisDataStoreModule/
 
 https://create.roblox.com/marketplace/asset/11671168253/
