@@ -8,7 +8,8 @@ For this you need `HTTPService` to json encode the values.
 ```lua
 local httpService = game:GetService("HttpService")
 
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 local dataStore = DataStoreModule.new("name", "key")
 if dataStore:Open() ~= "Success" then return end
 ```
@@ -70,7 +71,8 @@ The full source code:
 ```lua
 local httpService = game:GetService("HttpService")
 
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 local dataStore = DataStoreModule.new("name", "key")
 if dataStore:Open() ~= "Success" then return end
 

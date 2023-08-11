@@ -5,14 +5,16 @@ To create your first data store we will do something really simple and I will ex
 ## Requiring
 First we got to get the module.
 ```lua
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 ```
 
 ## Creating the data store
 To create the data store itself you got to use the `.new` function. **You must use this once per data store!**
 ```lua
 -- Require the ModuleScript
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 
 -- Find or create a datastore object
 local dataStore = DataStoreModule.new("Name", "Key")
@@ -58,7 +60,8 @@ dataStore:Destroy()
 Here is the full code of this tutorial:
 ```lua
 -- Require the ModuleScript
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 
 -- Find or create a datastore object
 local dataStore = DataStoreModule.new("Name", "Key")

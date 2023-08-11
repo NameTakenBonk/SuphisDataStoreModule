@@ -6,7 +6,8 @@ Now you have learned how to create the data store, you would probably like to im
 
 When creating a players data store you will need a template. A template is what will be the defualt value of a players data. This is important as you don't want to have to add the values later on, so by setting them to nil or 0 will be jsut fine. Here I will show you how it's done and talk a bit more about it.
 ```lua
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 
 local template = {
     Level = 0,
@@ -54,7 +55,8 @@ Now you should be done. If you want to edit the values of the player data all yo
 
 ## Full Source code:
 ```lua
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 
 local template = {
     Level = 0,

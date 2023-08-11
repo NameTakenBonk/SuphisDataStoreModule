@@ -15,7 +15,8 @@ dataStore.Value.Level += 1
 This is a way to save what a player bought.
 ```lua
 local MarketplaceService = game:GetService("MarketplaceService")
-local DataStoreModule = require(11671168253)
+local ServerStorage = game:GetService("ServerStorage")
+local DataStoreModule = require(ServerStorage.DataStoreModule)
 
 MarketplaceService.ProcessReceipt = function(receiptInfo)
     local dataStore = DataStoreModule.find("Player", receiptInfo.PlayerId)
