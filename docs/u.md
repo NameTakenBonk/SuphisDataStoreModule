@@ -53,7 +53,7 @@ end)
 
 Now you should be done. If you want to edit the values of the player data all you will need to do is get the data store by opening it **not creating a new one with .new()** and using the data store varible to do `Datastore.Value.Coins = x`.
 
-## Full Source code:
+### Full Source code:
 ```lua
 local ServerStorage = game:GetService("ServerStorage")
 local DataStoreModule = require(ServerStorage.DataStoreModule)
