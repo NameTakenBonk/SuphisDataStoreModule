@@ -11,4 +11,5 @@ local DataStoreModule = require(ServerStorage.DataStoreModule)
 ```lua
 local DataStoreModule = require(11671168253)
 ```
-
+**You must have this setting enbaled!**
+![Alt text](image.png)
