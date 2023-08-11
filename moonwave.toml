@@ -3,11 +3,17 @@ enabled = true
 includeReadme = true # Optional
 
 [[home.features]]
-title = "Feature 1"
-description = "This is a feature"
-image = "https://www.porschedublin.ie/binary/getasync/77abafcb-e6ef-4bf6-90b1-0f4bae612384/image.jpg?s=6"
+title = "5uphi"
+description = "Creator of the module itself."
+image = "https://tr.rbxcdn.com/2762a9dfc964102556ed275d837ec3d0/150/150/AvatarHeadshot/Png"
 
 [[home.features]]
-title = "Feature 2"
-description = "This is a second feature"
-image = ""
+title = "Alternative"
+description = "Creator of the documentation and github."
+image = "https://tr.rbxcdn.com/d041a23c94e014a8ee46a3a9356ddbe6/150/150/AvatarHeadshot/Png"
+
+[[home.features]]
+title = "The Discord"
+description = "Join the discord community! https://discord.gg/suphi-kaner-909926338801061961"
+image = "https://cdn-icons-png.flaticon.com/512/2111/2111370.png"
+

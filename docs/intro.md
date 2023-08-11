@@ -16,3 +16,9 @@ Suphi's datastore module is a fast, lightweight datastore module for roblox with
 * Direct value access        Access the datastore value directly, module will never tamper with your data and will never leave any data in your datastore or memorystore
 * Easy to use                Simple and elegant
 * Lightweight                No RunService events and no while do loops 100% event based
+
+## Learning this module
+Do you want to learn how to use this module? You can can continnue reading this or you can watch these video tutorials:
+* [Basics](https://www.youtube.com/watch?v=UAdE8-AfuMo&t)
+* [Advanced](https://www.youtube.com/watch?v=ykWkDov_x-8&t)
+* [Extras](https://www.youtube.com/watch?v=4rNva5qXj-c)
