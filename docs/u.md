@@ -80,3 +80,5 @@ game.Players.PlayerRemoving:Connect(function(player)
     if dataStore ~= nil then dataStore:Destroy() end -- If the player leaves datastore object is destroyed allowing the retry loop to stop
 end)
 ```
+
+-> If you wnat more player examples then continue on!
