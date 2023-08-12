@@ -1,3 +1,12 @@
+changelog = true
+classOrder = [
+    "Constructor",
+    "DataStore",
+    "Proxy",
+    "Signal",
+    "TaskManager"
+]
+
 [home]
 enabled = true
 includeReadme = false # Optional
@@ -18,3 +27,13 @@ description = "Queing is usefull because you can save data without opening the d
 tagline = "Easy to use Data Store Module for Roblox"
 favicon = "/icons/ICON.ico"
 projectName = "Suphi's Data Store Module"
+
+[[navbar.items]]
+href = "https://discord.gg/suphi-kaner-909926338801061961"
+label = "Discord"
+position = "right"
+
+[[navbar.items]]
+href = "https://create.roblox.com/marketplace/asset/11671168253"
+label = "Roblox"
+position = "right"
