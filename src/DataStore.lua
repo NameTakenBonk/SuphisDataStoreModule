@@ -153,6 +153,13 @@ export type DataStore = {
 	Usage: (self: DataStore) -> (number, number),
 }
 
+--- @function new
+--- @within Constructor
+--- @param name string
+--- @param scope string
+--- @param key string?
+--- @return proxy | DataStore
+
 Constructor.new = function(name, scope, key)
 	if key == nil then key, scope = scope, "global" end
 	local id = name .. "/" .. scope .. "/" .. key
@@ -197,6 +204,13 @@ Constructor.new = function(name, scope, key)
 	return proxy
 end
 
+--- @function hidden
+--- @within Constructor
+--- @param name string
+--- @param scope string
+--- @param key string?
+--- @return proxy
+
 Constructor.hidden = function(name, scope, key)
 	if key == nil then key, scope = scope, "global" end
 	local id = name .. "/" .. scope .. "/" .. key
@@ -239,11 +253,12 @@ Constructor.hidden = function(name, scope, key)
 	return proxy
 end
 
---- @function Open
+--- @function find
 --- @within Constructor
---- @param proxy table
---- @param template table
---- @return response : Enum | "Success" | "Error"
+--- @param name string
+--- @param scope string
+--- @param key string?
+--- @return DataStore
 
 
 Constructor.find = function(name, scope, key)
