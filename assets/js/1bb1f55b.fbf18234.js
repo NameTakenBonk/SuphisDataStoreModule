@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[472],{63891:e=>{e.exports=JSON.parse('{"sourceUrl":"https://github.com/NameTakenBonk/SuphisDataStoreModule/blob/master","baseUrl":"/SuphisDataStoreModule/","classOrder":["Constructor","DataStore","Proxy","Signal","TaskManager"],"apiCategories":[]}')}}]);
