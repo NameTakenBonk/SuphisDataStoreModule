@@ -10,6 +10,12 @@ local characters = {[0] = "0","1","2","3","4","5","6","7","8","9","a","b","c","d
 local bytes = {} for i = (0), #characters do bytes[string.byte(characters[i])] = i end
 local base = #characters + 1
 
+--- @class Constructor
+--- The class that creates the datastore class
+
+--- @type Constructor {new(): (name: string, scope: string, key: string?) -> DataStore, hidden(): (name: string, scope: string, key: string?) -> DataStore, find(): (name: string, scope: string, key: string?) -> DataStore, Response: { Success: string, Saved: string, Locked: string, State: string, Error: string }}
+--- @within Constructor
+--- All the constructors and their responses.
 
 -- Types
 export type Constructor = {
@@ -147,7 +153,6 @@ export type DataStore = {
 	Usage: (self: DataStore) -> (number, number),
 }
 
--- Constructor
 Constructor.new = function(name, scope, key)
 	if key == nil then key, scope = scope, "global" end
 	local id = name .. "/" .. scope .. "/" .. key
@@ -234,6 +239,13 @@ Constructor.hidden = function(name, scope, key)
 	return proxy
 end
 
+--- @function Open
+--- @within Constructor
+--- @param proxy table
+--- @param template table
+--- @return response : Enum | "Success" | "Error"
+
+
 Constructor.find = function(name, scope, key)
 	if key == nil then key, scope = scope, "global" end
 	local id = name .. "/" .. scope .. "/" .. key
@@ -241,8 +253,6 @@ Constructor.find = function(name, scope, key)
 end
 
 Constructor.Response = {Success = "Success", Saved = "Saved", Locked = "Locked", State = "State", Error = "Error"}
-
-
 
 
 -- DataStore
@@ -498,8 +508,6 @@ DataStore.__set = {
 	AttemptsChanged = false,
 	ProcessQueue = false,
 }
-
-
 
 
 -- Functions
