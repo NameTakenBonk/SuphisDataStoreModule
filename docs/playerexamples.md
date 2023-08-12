@@ -1,4 +1,8 @@
-# More player examples
+---
+sidebar_position: 5
+---
+
+# More Player Examples
 
 Here I will show you more ways to use this module with the player.
 

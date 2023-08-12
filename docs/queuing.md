@@ -1,3 +1,8 @@
+---
+sidebar_position: 7
+---
+
+
 # Queing
 Queing is usefull because you can save data without opening the data store iteself.
 

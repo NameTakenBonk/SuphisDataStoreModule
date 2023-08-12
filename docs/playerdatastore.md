@@ -1,4 +1,8 @@
-# Conecting the data store to the player.
+---
+sidebar_position: 4
+---
+
+# Player Data Stores
 
 Now you have learned how to create the data store, you would probably like to implement it to your game. The most common implementation of a data store in roblox is saving the players data. In this tutorial I will show you how you can save the player data. If you just want the full code you can allways check bellow.
 

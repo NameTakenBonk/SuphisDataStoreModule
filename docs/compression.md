@@ -1,3 +1,8 @@
+---
+sidebar_position: 6
+---
+
+
 # Compression
 
 Compression can be very usefull for saving large ammounts of data. As memory store service is more limited of what it can store you can use compression ro lower the size of the data. Here I will show you a simple compression example.

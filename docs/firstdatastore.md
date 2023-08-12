@@ -1,4 +1,9 @@
-# Creating your first data store
+---
+sidebar_position: 3
+---
+
+
+# Simple Data Store
 
 To create your first data store we will do something really simple and I will explain what everything does.
 

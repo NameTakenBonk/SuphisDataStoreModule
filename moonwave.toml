@@ -1,19 +1,19 @@
 [home]
 enabled = true
-includeReadme = true # Optional
+includeReadme = false # Optional
 
 [[home.features]]
-title = "5uphi"
-description = "Creator of the module itself."
-image = "https://tr.rbxcdn.com/2762a9dfc964102556ed275d837ec3d0/150/150/AvatarHeadshot/Png"
+title = "Easy to use"
+description = "This module is very easy to use. Giving you direct access to values and easy to learn module. With a built in auto save you don't have to worry manually having to have to save."
 
 [[home.features]]
-title = "Alternative"
-description = "Creator of the documentation and github."
-image = "https://tr.rbxcdn.com/d041a23c94e014a8ee46a3a9356ddbe6/150/150/AvatarHeadshot/Png"
+title = "Compression"
+description = "Data can be compressed to lower the character count in data, allowing larger sized data to be saved. The module gives various settings to play around with to compress data."
 
 [[home.features]]
-title = "The Discord"
-description = "Join the discord community! https://discord.gg/suphi-kaner-909926338801061961"
-image = "https://cdn-icons-png.flaticon.com/512/2111/2111370.png"
+title = "Queuing"
+description = "Queing is usefull because you can save data without opening the data store iteself. Giving you different ways to do so."
 
+[docusaurus]
+tagline = "Easy to use Data Store Module for Roblox"
+favicon = "/icons/ICON.ico"
