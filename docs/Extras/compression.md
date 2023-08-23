@@ -1,11 +1,11 @@
 ---
-sidebar_position: 6
+sidebar_position: 1
 ---
 
 
 # Compression
 
-Compression can be very usefull for saving large ammounts of data. As memory store service is more limited of what it can store you can use compression ro lower the size of the data. Here I will show you a simple compression example.
+Compression can be very usefull for saving large ammounts of data. As memory store service is more limited of what it can store you can use compression to lower the size of the data. Here I will show you a simple compression example.
 
 ## Setting things up
 For this you need `HTTPService` to json encode the values.
@@ -56,7 +56,7 @@ print(httpService:JSONEncode(dataStore.CompressedValue))
 ```
 Your output should look like this:
 ```
-11:38:40.301   ▼  {
+XX:XX:XX.XXX   ▼  {
                     ["Array"] =  ▼  {
                        [1] = 1234567891234567,
                        [2] = 2345678912345678,
@@ -67,9 +67,8 @@ Your output should look like this:
                     ["Number"] = 1234567891234.987,
                     ["String"] = "Hello World!"
                  }  -  Server - Script:24
-  11:38:40.302  {"Number":1234567891234.987,"String":"Hello World!","Array":[1234567891234567,2345678912345678,3456789123456789,4567891234567891,5678912345678912]}  -  Server - Script:26
-  11:38:40.303  "*#Number)hLy&yaFJ#String#Hello World!#Array|>cGy&yaFJ>e~i~{QA31>4YzarcwI1>v{GMPQr22>mrCnt=mH2"  -  Server - Script:28
-  11:38:40.585  Requiring asset 6738245247.
+  XX:XX:XX.XXX  {"Number":1234567891234.987,"String":"Hello World!","Array":[1234567891234567,2345678912345678,3456789123456789,4567891234567891,5678912345678912]}  -  Server - Script:26
+  XX:XX:XX.XXX  "*#Number)hLy&yaFJ#String#Hello World!#Array|>cGy&yaFJ>e~i~{QA31>4YzarcwI1>v{GMPQr22>mrCnt=mH2"  -  Server - Script:28
 ```
 
 ### The full source code:
@@ -99,3 +98,5 @@ print(httpService:JSONEncode(dataStore.Value))
 -- print the compressed value
 print(httpService:JSONEncode(dataStore.CompressedValue))
 ```
+
+-> Next is queuing

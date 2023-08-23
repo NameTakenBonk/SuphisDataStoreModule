@@ -1,10 +1,10 @@
 ---
-sidebar_position: 7
+sidebar_position: 2
 ---
 
 
 # Queing
-Queing is usefull because you can save data without opening the data store iteself.
+Queing is usefull because you can list data to save later.
 
 ## Setup
 Let's just get the basic things we need setup like we always do.
@@ -185,3 +185,5 @@ local function ProcessQueue(id, values, dataStore)
     -- if the next saving intervals also fail then when the queue gets processed again and they will get the coins again
 end
 ```
+
+-> Next is hidden

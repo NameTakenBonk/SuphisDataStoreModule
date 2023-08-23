@@ -87,4 +87,4 @@ game.Players.PlayerRemoving:Connect(function(player)
 end)
 ```
 
--> If you wnat more player examples then continue on!
+-> If you want more player examples then continue on!
