@@ -159,6 +159,7 @@ export type DataStore = {
 --- @param scope string
 --- @param key string?
 --- @return proxy | DataStore
+--- Returns previously created datastore session else a new session
 
 Constructor.new = function(name, scope, key)
 	if key == nil then key, scope = scope, "global" end
@@ -210,6 +211,7 @@ end
 --- @param scope string
 --- @param key string?
 --- @return proxy
+--- Returns a new session that cannot be returned by new or find
 
 Constructor.hidden = function(name, scope, key)
 	if key == nil then key, scope = scope, "global" end
@@ -259,7 +261,7 @@ end
 --- @param scope string
 --- @param key string?
 --- @return DataStore
-
+--- Returns previously created datastore session else nil
 
 Constructor.find = function(name, scope, key)
 	if key == nil then key, scope = scope, "global" end
