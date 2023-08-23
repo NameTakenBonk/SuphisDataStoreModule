@@ -25,7 +25,7 @@ description = "Queing is usefull because you can save data without opening the d
 
 [docusaurus]
 tagline = "Easy to use Data Store Module for Roblox"
-favicon = "/icons/ICON.ico"
+favicon = "/ICON.ico"
 projectName = "Suphi's Data Store Module"
 
 [[navbar.items]]
