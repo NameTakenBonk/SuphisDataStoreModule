@@ -419,15 +419,8 @@ local response, responseData = dataStore:Remove()
 -- Error, ErrorMessage
 ```
 
-# Update 1.1 + 1.2
-* bug fix
-* bug fix -- fixed small edge case when calling ds:Close() would return nil instead of "Success"
-* Saved response will now return dataStore.Value as responseData instead of nil
-* Added Saved event
-* improved proxy
-* improved task manager
-* you can now save custom values inside the object
-* under the hood changes
+# Update 1.3
+* added [any]: any to the datastore type
 
 
 <!-- markdownlint-enable -->
