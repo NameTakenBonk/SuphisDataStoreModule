@@ -118,6 +118,7 @@ export type Constructor = {
 --- * Safety = replace delete character from strings
 
 export type DataStore = {
+	[any]: any,
 	Value: any,
 	Metadata: {[string]: any},
 	UserIds: {any},
@@ -152,6 +153,7 @@ export type DataStore = {
 	Reconcile: (self: DataStore, template: any) -> (),
 	Usage: (self: DataStore) -> (number, number),
 }
+
 
 --- @function new
 --- @within Constructor
@@ -525,7 +527,6 @@ DataStore.__set = {
 	AttemptsChanged = false,
 	ProcessQueue = false,
 }
-
 
 -- Functions
 OpenTask = function(runningTask, proxy)
