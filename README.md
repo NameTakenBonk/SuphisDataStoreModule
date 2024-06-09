@@ -45,10 +45,10 @@ local dataStoreModule = require(11671168253)
 
 ### Wally
 ```toml
-suphisdatastoremodule = "nametakenbonk/suphisdatastoremodule@1.2.0"
+suphisdatastoremodule = "nametakenbonk/suphisdatastoremodule@1.3.0"
 ```
 
-Current version: `1.2`
+Current version: `1.3`
 
 # Docs/API
 
